@@ -27,7 +27,7 @@ dnl ********************
 dnl Check for cstdatomic
 dnl ********************
 
-AC_MSG_CHECKING(whether compiler supports cstdatomic)
+AC_MSG_CHECKING(whether compiler supports C++11 cstdatomic)
 
 OLD_CXXFLAGS="$CXXFLAGS"
 CXXFLAGS="$CXXFLAGS -std=c++0x"
