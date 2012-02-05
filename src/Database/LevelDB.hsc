@@ -13,7 +13,7 @@
 -- It's based on the C API, and thus doesn't quite offer the entire
 -- interface, but it gets close.
 -- 
--- This binding is based on LevelDB git revision \'239ac9d2dea0ac1708b7d903a3d80d3883e0781b\'
+-- This binding is based on LevelDB git revision \'239ac9d2dea0ac1708b7d903a3d80d3883e0781b\'.
 -- 
 module Database.LevelDB
        (
@@ -42,8 +42,7 @@ module Database.LevelDB
 
          -- * FFI interface
        ) where
-
-#include <leveldb/c.h>
+import Database.LevelDB.FFI
 
 data Snapshot
   

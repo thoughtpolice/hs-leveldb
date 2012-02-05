@@ -1,7 +1,10 @@
 name:                leveldb
 version:             0.1
 synopsis:            Haskell bindings to LevelDB
-description:         Haskell bindings to LevelDB
+description:         
+  Haskell bindings to LevelDB.
+  .
+  This binding is based on LevelDB git revision \'239ac9d2dea0ac1708b7d903a3d80d3883e0781b\'.
 homepage:            http://thoughtpolice.github.com/hs-leveldb
 bug-reports:         http://github.com/thoughtpolice/hs-leveldb/issues
 license:             BSD3
