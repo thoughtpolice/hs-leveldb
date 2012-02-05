@@ -42,7 +42,7 @@ module Database.LevelDB
 
          -- * FFI interface
        ) where
-import Database.LevelDB.FFI
+import Database.LevelDB.FFI()
 
 data Snapshot
   

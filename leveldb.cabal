@@ -44,7 +44,7 @@ source-repository head
 library
   exposed-modules:
     Database.LevelDB
-  
+    Database.LevelDB.FFI
   build-depends:
     base       >= 4,
     bytestring >= 0.9
