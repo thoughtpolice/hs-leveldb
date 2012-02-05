@@ -4,10 +4,19 @@
 
 These are the awesome Haskell bindings.
 
+[Homepage][main page].
+
 # Installation
 
-See the [main page][] for installation instructions, dependencies,
-documentation, and examples.
+Install the latest version of the bindings from Hackage:
+
+    $ cabal install leveldb
+
+To install the latest git bindings, you'll need `autoconf` so
+you can regenerate `./configure`:
+
+    $ autoconf
+    $ cabal install
 
 # Join in
 
