@@ -49,6 +49,7 @@ main = do
       C.c_leveldb_destroy_db options name ptr
       sfree ptr
 
+
   say "open_error"
   alloca $ \ptr -> do
     withCString dbname $ \name -> do
@@ -56,6 +57,7 @@ main = do
       r <- peek ptr
       ensure (r /= nullPtr)
       sfree ptr
+
 
   say "open"
   C.c_leveldb_options_set_create_if_missing options (fromIntegral 1)
@@ -68,6 +70,7 @@ main = do
       sfree ptr
       return db'
 
+
   say "put"
   alloca $ \ptr -> do
     withCStringLen "foo" $ \(kstr, klen) -> do
@@ -78,11 +81,42 @@ main = do
         withCStringLen "hello" (checkGet db roptions "foo")
         sfree ptr
   
+
   say "writebatch"
+  wb <- C.c_leveldb_writebatch_create
+  withCStringLen "foo" $ \(k,kl) ->
+    withCStringLen "a" $ \(v,vl) ->
+      C.c_leveldb_writebatch_put wb k (fromIntegral kl) v (fromIntegral vl)
+  C.c_leveldb_writebatch_clear wb
+
+  withCStringLen "bar" $ \(k,kl) ->
+    withCStringLen "b" $ \(v,vl) ->
+      C.c_leveldb_writebatch_put wb k (fromIntegral kl) v (fromIntegral vl)
+
+  withCStringLen "box" $ \(k,kl) ->
+    withCStringLen "c" $ \(v,vl) ->
+      C.c_leveldb_writebatch_put wb k (fromIntegral kl) v (fromIntegral vl)
+
+  withCStringLen "bar" $ \(k,kl) ->
+    C.c_leveldb_writebatch_delete wb k (fromIntegral kl)
+  
+  alloca $ \ptr -> do
+    C.c_leveldb_write db woptions wb ptr
+    r <- peek ptr
+    ensure (r == nullPtr)
+
+  withCStringLen "hello" (checkGet db roptions "foo")
+  checkGet db roptions "bar" (nullPtr,0)
+  withCStringLen "c" (checkGet db roptions "box")
+  -- TODO FIXME: writebatch iterate support
+  C.c_leveldb_writebatch_destroy wb
+
 
   say "iter"
 
+
   say "approximate_sizes"
+
 
   say "property"
   prop <- withCString "nosuchprop" (C.c_leveldb_property_value db)
@@ -92,6 +126,7 @@ main = do
 --  prop' <- peekCString prop
 --  putStrLn $ "stats:\n" ++ prop'
   free prop
+
 
   say "snapshot"
   snap <- C.c_leveldb_create_snapshot db
@@ -118,7 +153,9 @@ main = do
       db' <- C.c_leveldb_open options name ptr
       r <- peek ptr
       ensure (r == nullPtr)
-      -- FIXME
+      checkGet db' roptions "foo" (nullPtr, 0)
+      checkGet db' roptions "bar" (nullPtr, 0)
+      withCStringLen "c" (checkGet db' roptions "box")
       return db'
 
   say "cleanup"
