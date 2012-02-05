@@ -50,13 +50,12 @@ main = do
       sfree ptr
 
   say "open_error"
-  db <- alloca $ \ptr -> do
+  alloca $ \ptr -> do
     withCString dbname $ \name -> do
       db' <- C.c_leveldb_open options name ptr
       r <- peek ptr
       ensure (r /= nullPtr)
       sfree ptr
-      return db'
 
   say "open"
   C.c_leveldb_options_set_create_if_missing options (fromIntegral 1)
@@ -65,11 +64,20 @@ main = do
       db' <- C.c_leveldb_open options name ptr
       r <- peek ptr
       ensure (r == nullPtr)
+      checkGet db' roptions "foo" (nullPtr, 0)
       sfree ptr
       return db'
 
   say "put"
-
+  alloca $ \ptr -> do
+    withCStringLen "foo" $ \(kstr, klen) -> do
+      withCStringLen "hello" $ \(vstr, vlen) -> do
+        C.c_leveldb_put db woptions kstr (fromIntegral klen) vstr (fromIntegral vlen) ptr
+        r <- peek ptr
+        ensure (r == nullPtr)
+        withCStringLen "hello" (checkGet db roptions "foo")
+        sfree ptr
+  
   say "writebatch"
 
   say "iter"
@@ -86,6 +94,17 @@ main = do
   free prop
 
   say "snapshot"
+  snap <- C.c_leveldb_create_snapshot db
+  alloca $ \ptr -> do
+    withCStringLen "foo" $ \(str,len) -> (C.c_leveldb_delete db woptions str (fromIntegral len) ptr)
+    r <- peek ptr
+    ensure (r == nullPtr)
+  C.c_leveldb_readoptions_set_snapshot roptions snap
+  withCStringLen "hello" (checkGet db roptions "foo")
+  C.c_leveldb_readoptions_set_snapshot roptions nullPtr
+  checkGet db roptions "foo" (nullPtr, 0)
+  C.c_leveldb_release_snapshot db snap
+
 
   say "repair"
   db <- alloca $ \ptr -> do
@@ -109,7 +128,26 @@ main = do
   C.c_leveldb_writeoptions_destroy woptions
   C.c_leveldb_cache_destroy cache
   C.c_leveldb_env_destroy env
-  return ()
+  putStrLn "PASS"
+
+
+-- Utils
+
+checkGet :: Ptr LevelDB_t -> Ptr LevelDB_Readoptions_t -> String -> CStringLen -> IO ()
+checkGet db ropts key (expected, elen) = 
+  withCStringLen key $ \(cstr, clen) -> do
+    alloca $ \vallen -> do
+      alloca $ \err -> do
+        ptr <- C.c_leveldb_get db ropts cstr (fromIntegral clen) vallen err
+        ensure (err /= nullPtr)
+        if (expected /= nullPtr) then do
+          vlen <- peek vallen
+          str  <- peekCStringLen (ptr, fromIntegral vlen)
+          str2 <- peekCStringLen (expected, elen)
+          ensure (str == str2)
+         else do
+          ensure (ptr == nullPtr)
+        sfree err
 
 ensure :: Bool -> IO ()
 ensure True  = return ()
@@ -123,4 +161,5 @@ sfree p = do
   when (x /= nullPtr) $ do
     free x
 
+say :: String -> IO ()
 say x = putStrLn $ "===== " ++ x ++ " ====="

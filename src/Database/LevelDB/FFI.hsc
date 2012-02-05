@@ -52,6 +52,8 @@ module Database.LevelDB.FFI
        , c_leveldb_writebatch_destroy
        , c_leveldb_create_iterator
        , c_leveldb_iter_destroy
+       , c_leveldb_create_snapshot
+       , c_leveldb_release_snapshot
        --, c_leveldb_comparator_create
        , c_leveldb_comparator_destroy
 
@@ -199,6 +201,12 @@ foreign import ccall "leveldb_create_iterator"
   c_leveldb_create_iterator :: Ptr LevelDB_t -> Ptr LevelDB_Readoptions_t -> IO (Ptr LevelDB_Iterator_t)
 foreign import ccall "leveldb_iter_destroy"
   c_leveldb_iter_destroy :: Ptr LevelDB_Iterator_t -> IO ()
+
+foreign import ccall "leveldb_create_snapshot"
+  c_leveldb_create_snapshot :: Ptr LevelDB_t -> IO (Ptr LevelDB_Snapshot_t)
+foreign import ccall "leveldb_release_snapshot"
+  c_leveldb_release_snapshot :: Ptr LevelDB_t -> Ptr LevelDB_Snapshot_t -> IO ()
+
 
 {-
 foreign import ccall "leveldb_comparator_create"
