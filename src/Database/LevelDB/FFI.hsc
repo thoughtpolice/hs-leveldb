@@ -68,6 +68,9 @@ module Database.LevelDB.FFI
        , c_leveldb_options_set_compression
        , c_leveldb_options_set_comparator
 
+       , c_leveldb_no_compression
+       , c_leveldb_snappy_compression
+
          -- ** Read options
        , c_leveldb_readoptions_set_verify_checksums
        , c_leveldb_readoptions_set_fill_cache
@@ -238,6 +241,12 @@ foreign import ccall "leveldb_options_set_compression"
 
 foreign import ccall "leveldb_options_set_comparator"
   c_leveldb_options_set_comparator :: Ptr LevelDB_Options_t -> Ptr LevelDB_Comparator_t -> IO ()
+
+c_leveldb_no_compression :: CInt
+c_leveldb_no_compression = fromIntegral (0 :: Int)
+
+c_leveldb_snappy_compression :: CInt
+c_leveldb_snappy_compression = fromIntegral (1 :: Int)
 
 -- Readoptions
 
