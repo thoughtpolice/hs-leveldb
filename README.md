@@ -12,7 +12,7 @@ Install the latest version of the bindings from Hackage:
 
     $ cabal install leveldb
 
-To install the latest git bindings, you'll need `autoconf` so
+To install the latest git version, you'll need `autoconf` so
 you can regenerate `./configure`:
 
     $ autoconf
