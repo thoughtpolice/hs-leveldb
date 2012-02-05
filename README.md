@@ -6,6 +6,18 @@ These are the awesome Haskell bindings.
 
 [Homepage][main page].
 
+# Features
+
+Most of the features of the C bindings:
+
+  * Automatic compression if you have [Snappy](http://snappy.googlecode.com) installed.
+  * Snapshots
+  * Repair functionality
+  * Batch-based atomic writes
+  * Iterator support
+  * Properties and approximate sizes on the filesystem
+  * Moderately high level bindings, along with low-level C based bindings
+
 # Installation
 
 Install the latest version of the bindings from Hackage:
