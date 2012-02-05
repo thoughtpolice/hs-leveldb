@@ -13,6 +13,8 @@
 -- It's based on the C API, and thus doesn't quite offer the entire
 -- interface, but it gets close.
 -- 
+-- This binding is based on LevelDB git revision \'239ac9d2dea0ac1708b7d903a3d80d3883e0781b\'
+-- 
 module Database.LevelDB
        (
          -- * Types
@@ -34,8 +36,11 @@ module Database.LevelDB
 
          -- * Destroying/Repairing databases
 
+         -- * Approximate sizes of filesystem data
+
          -- * Database properties
 
+         -- * FFI interface
        ) where
 
 #include <leveldb/c.h>
@@ -76,4 +81,10 @@ data ReadOptions
 data WriteOptions
   = WriteOptions { writeWithSync :: Bool
                  }
+
+
+-- 
+-- FFI
+-- 
+
 

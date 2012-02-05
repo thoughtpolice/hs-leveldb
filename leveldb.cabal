@@ -23,12 +23,17 @@ extra-source-files:
   src/cbits/leveldb/db/*.h
   src/cbits/leveldb/table/*.h
   src/cbits/leveldb/table/*.cc
+  src/cbits/leveldb/port/*.h
+  src/cbits/leveldb/port/*.cc
   src/cbits/leveldb/util/*.h
   src/cbits/leveldb/util/*.cc
   src/cbits/leveldb/include/leveldb/*.h
   examples/*.hs
   tests/*.hs
-  
+  leveldb.buildinfo.in
+  configure.ac
+  configure
+
 source-repository head
   type: git
   location: https://github.com/thoughtpolice/hs-leveldb.git
@@ -98,7 +103,7 @@ library
     src/cbits/leveldb/util/status.cc
 
   ghc-options:        -Wall -O2 -funbox-strict-fields
-                      -fwarn-tabs -Werror
+                      -fwarn-tabs
   default-extensions: CPP
   default-language:   Haskell2010
 
