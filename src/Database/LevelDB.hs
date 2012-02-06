@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- |
 -- Module      : Database.LevelDB
 -- Copyright   : (c) Austin Seipp 2012
@@ -64,11 +65,20 @@ module Database.LevelDB
          -- * Database properties
        , property          -- :: DB -> String -> IO (Maybe String)
        ) where
+
+import Control.Monad (liftM)
+
 import Foreign.Ptr
+import Foreign.C.String
+import Foreign.Storable
+import Foreign.Marshal.Alloc
+
 import System.FilePath
 import Data.ByteString as S
 
-import Database.LevelDB.FFI
+import Control.Concurrent as Conc
+
+import Database.LevelDB.FFI as C
 
 
 -- 
@@ -76,16 +86,17 @@ import Database.LevelDB.FFI
 -- 
 
 -- | Handle to an opened database.
-data DB = DB !(Ptr LevelDB_t)
+data DB = DB !(Ptr LevelDB_t) !(Maybe (Ptr LevelDB_Cache_t))
+  deriving Show
 
 -- | Handle to a database snapshot
-data Snapshot = Snapshot !(Ptr LevelDB_Snapshot_t)
+data Snapshot = Snapshot !(Ptr LevelDB_t) !(Ptr LevelDB_Snapshot_t)
 
 -- | Handle to a batched write object
-data Writebatch = Writebatch !(Ptr LevelDB_Writebatch_t)
+newtype Writebatch = Writebatch (Conc.MVar (Ptr LevelDB_Writebatch_t))
   
 -- | Handle to a database iterator
-data Iterator = Iterator !(Ptr LevelDB_Iterator_t)
+newtype Iterator = Iterator (Conc.MVar (Ptr LevelDB_Iterator_t))
 
 -- | Compression modes
 data Compression
@@ -166,12 +177,27 @@ type Err = String
 open :: DBOptions  -- ^ Database options
      -> FilePath   -- ^ Path to database
      -> IO (Either Err DB)
-open = undefined
+open dbopts@DBOptions{..} dbname = do
+  withCString dbname $ \str -> do
+    opts <- dbOptsToPtr dbopts -- FIXME: finalizer
+    r <- wrapErr (C.c_leveldb_open opts str)
+    case r of
+      Left e   -> return $ Left e
+      Right db -> do
+        cache <- case dbCacheCapacity of
+          Just x -> do 
+            c <- C.c_leveldb_cache_create_lru $ fromIntegral x
+            C.c_leveldb_options_set_cache opts c
+            return $! Just c
+          _      -> return Nothing
+        return $! Right $! DB db cache
 
 -- | Close a database handle.
 close :: DB -- ^ Database
       -> IO ()
-close = undefined
+close (DB db cache) = do
+  C.c_leveldb_close db
+  maybe (return ()) C.c_leveldb_cache_destroy cache
 
 -- | Put a value into a database.
 put :: DB           -- ^ Database
@@ -179,7 +205,7 @@ put :: DB           -- ^ Database
     -> ByteString   -- ^ Key
     -> ByteString   -- ^ Value
     -> IO (Maybe Err)
-put = undefined
+put woptions key value = undefined
 
 get :: DB          -- ^ Database
     -> ReadOptions -- ^ Read options
@@ -230,20 +256,23 @@ destroyWritebatch = undefined
 -- call 'releaseSnapshot' when the snapshot is no longer needed.
 createSnapshot :: DB -- ^ Database
                -> IO Snapshot
-createSnapshot = undefined
+createSnapshot (DB db _) = do
+  snap <- C.c_leveldb_create_snapshot db
+  return $! Snapshot db snap
 
 -- | Release a previously acquired snapshot.  The caller must not
 -- use "snapshot" after this call.
 releaseSnapshot :: Snapshot -- ^ Snapshot
                 -> IO ()
-releaseSnapshot = undefined
+releaseSnapshot (Snapshot db s) = do
+  C.c_leveldb_release_snapshot db s
 
 -- | Destroy the contents of the specified database.
 -- Be very careful using this method.
 destroy :: DBOptions -- ^ Database options
         -> FilePath  -- ^ Path to database
         -> IO (Maybe String)
-destroy = undefined
+destroy dbopts dbname = undefined
 
 -- | If a DB cannot be opened, you may attempt to call this method to
 -- resurrect as much of the contents of the database as possible.
@@ -252,7 +281,7 @@ destroy = undefined
 repair :: DBOptions -- ^ Database options
        -> FilePath  -- ^ Path to database
        -> IO (Maybe String)
-repair = undefined
+repair dbopts dbname = undefined
 
 -- | Retrieve a property about the database. Valid property names include:
 --
@@ -266,5 +295,53 @@ repair = undefined
 --    of the sstables that make up the db contents.
 property :: DB 
          -> String -- ^ Property name
-         -> IO (Either Err String)
-property = undefined
+         -> IO (Maybe String)
+property (DB db _) prop = do
+  withCString prop $ \str -> do
+    p <- C.c_leveldb_property_value db str
+    if p == nullPtr then return Nothing
+     else do Just `liftM` peekCString p
+     -- TODO FIXME: finalizer
+
+
+-- 
+-- Utils
+-- 
+
+-- NB: does not set cache! cache is only set/deleted in calls to 'open'
+dbOptsToPtr :: DBOptions -> IO (Ptr LevelDB_Options_t)
+dbOptsToPtr DBOptions{..} = do
+  options <- C.c_leveldb_options_create
+  C.c_leveldb_options_set_create_if_missing options (boolToCUInt dbCreateIfMissing)
+  C.c_leveldb_options_set_error_if_exists options (boolToCUInt dbErrorIfExists)
+  C.c_leveldb_options_set_paranoid_checks options (boolToCUInt dbParanoidChecks)
+  C.c_leveldb_options_set_write_buffer_size options (fromIntegral dbWriteBufferSize)
+  C.c_leveldb_options_set_max_open_files options (fromIntegral dbMaxOpenFiles)
+  C.c_leveldb_options_set_block_size options (fromIntegral dbBlockSize)
+  C.c_leveldb_options_set_block_restart_interval options (fromIntegral dbBlockResizeInterval)
+  C.c_leveldb_options_set_compression options (toCompression dbCompression)
+  return options
+
+  where
+    boolToCUInt True = fromIntegral (1 :: Int)
+    boolToCUInt False = fromIntegral (0 :: Int)
+    toCompression Snappy = C.c_leveldb_snappy_compression
+    toCompression None   = C.c_leveldb_no_compression
+
+readOptsToPtr :: ReadOptions -> IO (Ptr LevelDB_Readoptions_t)
+readOptsToPtr ReadOptions{..} = undefined
+
+writeOptsToPtr :: WriteOptions -> IO (Ptr LevelDB_Writeoptions_t)
+writeOptsToPtr WriteOptions{..} = undefined
+
+wrapErr :: (Ptr CString -> IO a) -> IO (Either Err a)
+wrapErr f = do
+  alloca $ \ptr -> do
+    r <- f ptr
+    x <- peek ptr
+    if (x /= nullPtr) then do
+      str <- peekCString x
+      free x
+      return $ Left str
+     else do
+      return $ Right r
