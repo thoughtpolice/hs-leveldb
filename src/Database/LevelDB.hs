@@ -83,6 +83,7 @@ import Foreign.Marshal.Alloc
 
 import System.FilePath
 import Data.ByteString as S
+import Data.ByteString.Unsafe as S
 
 import Control.Concurrent as Conc
 
@@ -213,21 +214,51 @@ put :: DB           -- ^ Database
     -> ByteString   -- ^ Key
     -> ByteString   -- ^ Value
     -> IO (Maybe Err)
-put woptions key value = undefined
+put (DB db _ _) woptions key value = do
+  S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
+    S.unsafeUseAsCStringLen value $ \(vptr,vlen) -> do
+      opts <- writeOptsToPtr woptions
+      r <- wrapErr (C.c_leveldb_put db opts kptr (fromIntegral klen) vptr (fromIntegral vlen))
+      C.c_leveldb_writeoptions_destroy opts
+      case r of
+        Left e   -> return $ Just e
+        Right () -> return Nothing
 
--- | Look up a value in a database.
+-- | Look up a value in a database. May return 'Right Data.ByteString.empty'
+-- if the key does not exist.
 get :: DB          -- ^ Database
     -> ReadOptions -- ^ Read options
     -> ByteString  -- ^ Key
     -> IO (Either Err ByteString)
-get = undefined
+get (DB db _ _) roptions key =
+  S.unsafeUseAsCStringLen key $ \(kptr, klen) ->
+    alloca $ \vallen -> do 
+      opts <- readOptsToPtr roptions
+      r    <- wrapErr (C.c_leveldb_get db opts kptr (fromIntegral klen) vallen)
+      C.c_leveldb_readoptions_destroy opts
+      case r of
+        Left e  -> return $ Left e
+        Right p -> do
+          if p == nullPtr then return $ Right S.empty
+           else do
+            vlen <- peek vallen
+            bs <- S.packCStringLen (p, fromIntegral vlen)
+            return $ Right bs
 
--- | Remove a database entry
+-- | Remove a database entry. Returns 'Nothing' in case of success,
+-- or 'Just e' where 'e' is an error if not.
 delete :: DB           -- ^ Database
        -> WriteOptions -- ^ Write options
        -> ByteString   -- ^ Key
        -> IO (Maybe Err)
-delete = undefined
+delete (DB db _ _) woptions key = 
+  S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
+    opts <- writeOptsToPtr woptions
+    r <- wrapErr (C.c_leveldb_delete db opts kptr (fromIntegral klen))
+    C.c_leveldb_writeoptions_destroy opts
+    case r of
+      Left e   -> return $ Just e
+      Right () -> return Nothing
 
 -- | Apply a 'WriteBatch' and all its updates to the database
 -- atomically.
@@ -306,7 +337,7 @@ repair :: DBOptions -- ^ Database options
 repair dbopts dbname =
   withCString dbname $ \str -> do
     opts <- dbOptsToPtr dbopts
-    r <- wrapErr (C.c_leveldb_destroy_db opts str)
+    r <- wrapErr (C.c_leveldb_repair_db opts str)
     C.c_leveldb_options_destroy opts
     case r of
       Left e -> return (Just e)
@@ -338,13 +369,29 @@ property (DB db _ _) prop = do
 -- Utils
 -- 
 
+writeOptsToPtr :: WriteOptions -> IO (Ptr LevelDB_Writeoptions_t)
+writeOptsToPtr WriteOptions{..} = do
+  woptions <- C.c_leveldb_writeoptions_create
+  C.c_leveldb_writeoptions_set_sync woptions (boolToNum writeWithSync)
+  return woptions
+
+readOptsToPtr :: ReadOptions -> IO (Ptr LevelDB_Readoptions_t)
+readOptsToPtr ReadOptions{..} = do
+  roptions <- C.c_leveldb_readoptions_create
+  C.c_leveldb_readoptions_set_verify_checksums roptions (boolToNum readVerifyChecksums)
+  C.c_leveldb_readoptions_set_fill_cache roptions (boolToNum readFillCache)
+  case readSnapshot of
+    Nothing             -> C.c_leveldb_readoptions_set_snapshot roptions nullPtr
+    Just (Snapshot _ s) -> C.c_leveldb_readoptions_set_snapshot roptions s
+  return roptions
+
 -- NB: does not set cache! cache is only set/deleted in calls to 'open/cose'
 dbOptsToPtr :: DBOptions -> IO (Ptr LevelDB_Options_t)
 dbOptsToPtr DBOptions{..} = do
   options <- C.c_leveldb_options_create
-  C.c_leveldb_options_set_create_if_missing options (boolToCUInt dbCreateIfMissing)
-  C.c_leveldb_options_set_error_if_exists options (boolToCUInt dbErrorIfExists)
-  C.c_leveldb_options_set_paranoid_checks options (boolToCUInt dbParanoidChecks)
+  C.c_leveldb_options_set_create_if_missing options (boolToNum dbCreateIfMissing)
+  C.c_leveldb_options_set_error_if_exists options (boolToNum dbErrorIfExists)
+  C.c_leveldb_options_set_paranoid_checks options (boolToNum dbParanoidChecks)
   C.c_leveldb_options_set_write_buffer_size options (fromIntegral dbWriteBufferSize)
   C.c_leveldb_options_set_max_open_files options (fromIntegral dbMaxOpenFiles)
   C.c_leveldb_options_set_block_size options (fromIntegral dbBlockSize)
@@ -352,16 +399,12 @@ dbOptsToPtr DBOptions{..} = do
   C.c_leveldb_options_set_compression options (toCompression dbCompression)
   return options
  where
-    boolToCUInt True = fromIntegral (1 :: Int)
-    boolToCUInt False = fromIntegral (0 :: Int)
     toCompression Snappy = C.c_leveldb_snappy_compression
     toCompression None   = C.c_leveldb_no_compression
 
-readOptsToPtr :: ReadOptions -> IO (Ptr LevelDB_Readoptions_t)
-readOptsToPtr ReadOptions{..} = undefined
-
-writeOptsToPtr :: WriteOptions -> IO (Ptr LevelDB_Writeoptions_t)
-writeOptsToPtr WriteOptions{..} = undefined
+boolToNum :: Num b => Bool -> b
+boolToNum True = fromIntegral (1 :: Int)
+boolToNum False = fromIntegral (0 :: Int)
 
 wrapErr :: (Ptr CString -> IO a) -> IO (Either Err a)
 wrapErr f = do
