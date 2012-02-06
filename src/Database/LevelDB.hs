@@ -16,6 +16,14 @@
 -- 
 -- This binding is based on LevelDB git revision \'239ac9d2dea0ac1708b7d903a3d80d3883e0781b\'.
 -- 
+-- Currently missing from the API:
+-- 
+--  * Support for @leveldb_writebatch_iterate@
+-- 
+--  * Iterator support
+-- 
+--  * Comparators
+-- 
 module Database.LevelDB
        (
          -- * Types
@@ -207,6 +215,7 @@ put :: DB           -- ^ Database
     -> IO (Maybe Err)
 put woptions key value = undefined
 
+-- | Look up a value in a database.
 get :: DB          -- ^ Database
     -> ReadOptions -- ^ Read options
     -> ByteString  -- ^ Key
