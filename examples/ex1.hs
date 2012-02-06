@@ -11,7 +11,8 @@ main = do
   dbname <- (("/tmp/leveldb_hs_test-"++) . show) `liftM` getEffectiveUserID
   say $ "creating db " ++ dbname
 
-  let opts = defaultDBOptions{dbCreateIfMissing = True}
+  let opts = defaultDBOptions{dbCreateIfMissing = True, dbErrorIfExists = True}
+  LDB.destroy opts dbname
   db <- LDB.open opts dbname
   say "checking stats"
   case db of
