@@ -47,7 +47,8 @@ library
     Database.LevelDB.FFI
   build-depends:
     base       >= 4,
-    bytestring >= 0.9
+    bytestring >= 0.9,
+    filepath   >= 1.0
 
   cc-options:         -fno-builtin-memcmp -DLEVELDB_PLATFORM_POSIX
 
@@ -118,6 +119,7 @@ test-suite properties
   build-depends:
     base           >= 4,
     bytestring     >= 0.9,
+    filepath       >= 1.0,
     QuickCheck     == 2.4.*,
     test-framework == 0.4.*,
     test-framework-quickcheck2 == 0.2.*,
