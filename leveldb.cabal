@@ -1,5 +1,5 @@
 name:                leveldb
-version:             0.1
+version:             0.0
 synopsis:            Haskell bindings to LevelDB
 description:         
   Haskell bindings to LevelDB.
