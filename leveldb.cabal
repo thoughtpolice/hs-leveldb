@@ -2,9 +2,30 @@ name:                leveldb
 version:             0.0
 synopsis:            Haskell bindings to LevelDB
 description:         
-  Haskell bindings to LevelDB.
+  LevelDB (<http://leveldb.googlecode.com>) is a fast and
+  persistent key/value storage library written by Google.
+  It's used as the backend for IndexedDB in Chrome. Among its
+  features are:
   .
-  This binding is based on LevelDB git revision \'239ac9d2dea0ac1708b7d903a3d80d3883e0781b\'.
+  * Automatic compression if you have Snappy installed (<http://snappy.googlecode.com>).
+  . 
+  * Snapshots.
+  . 
+  * DB repairs
+  . 
+  * Batch-based atomic writes.
+  .
+  * Iterator support for enumerating ranges of keys in the database.
+  .
+  This package contains the complete LevelDB source code and is completely self
+  contained. The included LevelDB git revision is @239ac9d2dea0ac1708b7d903a3d80d3883e0781b@.
+  .
+  This binding is based on the C API, and thus not all of the functionality is supported.
+  It has been tested on Mac OS X Snow Leopard and modern Linux, but will likely also work on
+  FreeBSD and Solaris as well.
+  .
+  Please see the LevelDB homepage (<http://leveldb.googlecode.com>) for
+  more details and benchmarks.
 homepage:            http://thoughtpolice.github.com/hs-leveldb
 bug-reports:         http://github.com/thoughtpolice/hs-leveldb/issues
 license:             BSD3
