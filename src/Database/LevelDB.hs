@@ -24,6 +24,13 @@
 -- 
 --  * Comparators
 -- 
+-- TODO:
+-- 
+--  * Back Iterators/writebatches by 'ForeignPtr's with finalizers. Maybe snapshots too,
+--    but normally you may want to control that more.
+--  * More safety in 'close': it shouldn't double-free when you call it twice on the same object.
+--    Perhaps make 'DB' instead contain an 'MVar DBState'
+-- 
 module Database.LevelDB
        (
          -- * Types
@@ -54,6 +61,7 @@ module Database.LevelDB
          -- * Batched writes
        , write             -- :: DB -> WriteOptions -> Writebatch -> IO (Maybe Err)
        , createWritebatch  -- :: IO Writebatch
+       , clearWritebatch   -- :: Writebatch -> IO ()
        , writebatchPut     -- :: Writebatch -> ByteString -> ByteString -> IO ()
        , writebatchDelete  -- :: Writebatch -> ByteString -> IO ()
        , destroyWritebatch -- :: Writebatch -> IO ()
@@ -75,7 +83,7 @@ module Database.LevelDB
        ) where
 
 import Control.Monad (liftM)
-
+import Control.Applicative
 import Foreign.Ptr
 import Foreign.C.String
 import Foreign.Storable
@@ -93,6 +101,12 @@ import Database.LevelDB.FFI as C
 -- 
 -- Types
 -- 
+
+data DBState
+  = DBState { dbsPtr      :: !(Ptr LevelDB_t)
+            , dbsOptions  :: !(Ptr LevelDB_Options_t)
+            , dbsCache    :: !(Maybe (Ptr LevelDB_Cache_t))
+            }
 
 -- | Handle to an opened database.
 data DB = DB !(Ptr LevelDB_t) !(Ptr LevelDB_Options_t) !(Maybe (Ptr LevelDB_Cache_t))
@@ -186,19 +200,19 @@ type Err = String
 open :: DBOptions  -- ^ Database options
      -> FilePath   -- ^ Path to database
      -> IO (Either Err DB)
-open dbopts@DBOptions{..} dbname =
-  withCString dbname $ \str -> do
-    opts <- dbOptsToPtr dbopts
-    cache <- case dbCacheCapacity of
-      Just x -> do
-        c <- C.c_leveldb_cache_create_lru $ fromIntegral x
-        C.c_leveldb_options_set_cache opts c
-        return $ Just c
-      Nothing -> return Nothing
-    r <- wrapErr (C.c_leveldb_open opts str)
-    case r of
-      Left e   -> return $ Left e
-      Right db -> return $ Right $ DB db opts cache
+open dbopts@DBOptions{..} dbname
+  = withCString dbname $ \str -> do
+      opts <- dbOptsToPtr dbopts
+      cache <- case dbCacheCapacity of
+        Just x -> do
+          c <- C.c_leveldb_cache_create_lru $ fromIntegral x
+          C.c_leveldb_options_set_cache opts c
+          return $ Just c
+        Nothing -> return Nothing
+      r <- wrapErr (C.c_leveldb_open opts str)
+      case r of
+        Left e   -> return $ Left e
+        Right db -> return $ Right $ DB db opts cache
 
 -- | Close a database handle.
 close :: DB -- ^ Database
@@ -214,15 +228,15 @@ put :: DB           -- ^ Database
     -> ByteString   -- ^ Key
     -> ByteString   -- ^ Value
     -> IO (Maybe Err)
-put (DB db _ _) woptions key value = do
-  S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
-    S.unsafeUseAsCStringLen value $ \(vptr,vlen) -> do
-      opts <- writeOptsToPtr woptions
-      r <- wrapErr (C.c_leveldb_put db opts kptr (fromIntegral klen) vptr (fromIntegral vlen))
-      C.c_leveldb_writeoptions_destroy opts
-      case r of
-        Left e   -> return $ Just e
-        Right () -> return Nothing
+put (DB db _ _) woptions key value
+  = S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
+      S.unsafeUseAsCStringLen value $ \(vptr,vlen) -> do
+        opts <- writeOptsToPtr woptions
+        r <- wrapErr (C.c_leveldb_put db opts kptr (fromIntegral klen) vptr (fromIntegral vlen))
+        C.c_leveldb_writeoptions_destroy opts
+        case r of
+          Left e -> return $ Just e
+          Right _ -> return Nothing
 
 -- | Look up a value in a database. May return 'Right Data.ByteString.empty'
 -- if the key does not exist.
@@ -230,20 +244,20 @@ get :: DB          -- ^ Database
     -> ReadOptions -- ^ Read options
     -> ByteString  -- ^ Key
     -> IO (Either Err ByteString)
-get (DB db _ _) roptions key =
-  S.unsafeUseAsCStringLen key $ \(kptr, klen) ->
-    alloca $ \vallen -> do 
-      opts <- readOptsToPtr roptions
-      r    <- wrapErr (C.c_leveldb_get db opts kptr (fromIntegral klen) vallen)
-      C.c_leveldb_readoptions_destroy opts
-      case r of
-        Left e  -> return $ Left e
-        Right p -> do
-          if p == nullPtr then return $ Right S.empty
-           else do
-            vlen <- peek vallen
-            bs <- S.packCStringLen (p, fromIntegral vlen)
-            return $ Right bs
+get (DB db _ _) roptions key
+  = S.unsafeUseAsCStringLen key $ \(kptr, klen) ->
+      alloca $ \vallen -> do 
+        opts <- readOptsToPtr roptions
+        r    <- wrapErr (C.c_leveldb_get db opts kptr (fromIntegral klen) vallen)
+        C.c_leveldb_readoptions_destroy opts
+        case r of
+          Left e  -> return $ Left e
+          Right p -> do
+            if p == nullPtr then return $ Right S.empty
+             else do
+              vlen <- peek vallen
+              bs <- S.packCStringLen (p, fromIntegral vlen)
+              return $ Right bs
 
 -- | Remove a database entry. Returns 'Nothing' in case of success,
 -- or 'Just e' where 'e' is an error if not.
@@ -251,14 +265,15 @@ delete :: DB           -- ^ Database
        -> WriteOptions -- ^ Write options
        -> ByteString   -- ^ Key
        -> IO (Maybe Err)
-delete (DB db _ _) woptions key = 
-  S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
-    opts <- writeOptsToPtr woptions
-    r <- wrapErr (C.c_leveldb_delete db opts kptr (fromIntegral klen))
-    C.c_leveldb_writeoptions_destroy opts
-    case r of
-      Left e   -> return $ Just e
-      Right () -> return Nothing
+delete (DB db _ _) woptions key
+  = S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
+      opts <- writeOptsToPtr woptions
+      r <- wrapErr (C.c_leveldb_delete db opts kptr (fromIntegral klen))
+      C.c_leveldb_writeoptions_destroy opts
+      case r of
+        Left e  -> return $ Just e
+        Right _ -> return Nothing
+
 
 -- | Apply a 'WriteBatch' and all its updates to the database
 -- atomically.
@@ -266,29 +281,50 @@ write :: DB           -- ^ Database
       -> WriteOptions -- ^ Write options
       -> Writebatch   -- ^ Batch of writes to issue
       -> IO (Maybe Err)
-write = undefined
+write (DB db _ _) woptions (Writebatch m) = do
+  opts <- writeOptsToPtr woptions
+  r <- Conc.withMVar m $ \wb -> wrapErr (C.c_leveldb_write db opts wb)
+  C.c_leveldb_writeoptions_destroy opts
+  case r of
+    Left e  -> return $ Just e
+    Right _ -> return Nothing
 
 -- | Create a 'Writebatch', which can be used to make multiple atomic updates
 createWritebatch :: IO Writebatch
-createWritebatch = undefined
+createWritebatch
+  = Writebatch <$> (C.c_leveldb_writebatch_create >>= Conc.newMVar)
+
+-- | Clear all the update operations from the specified 'Writebatch' object
+clearWritebatch :: Writebatch -> IO ()
+clearWritebatch (Writebatch m)
+  = Conc.withMVar m C.c_leveldb_writebatch_clear
 
 -- | Issue a 'put' operation to take place as part of a write batch.
 writebatchPut :: Writebatch -- ^ Write batch
               -> ByteString -- ^ Key
               -> ByteString -- ^ Value
               -> IO ()
-writebatchPut = undefined
+writebatchPut (Writebatch m) key val
+  = S.unsafeUseAsCStringLen key $ \(kptr, klen) ->
+      S.unsafeUseAsCStringLen val $ \(vptr, vlen) -> 
+        Conc.withMVar m $ \wb ->
+          C.c_leveldb_writebatch_put wb kptr (fromIntegral klen) vptr (fromIntegral vlen)
 
 -- | Issue a 'delete' operation to take place as part of a write batch.
 writebatchDelete :: Writebatch -- ^ Write batch
                  -> ByteString -- ^ Key
                  -> IO ()
-writebatchDelete = undefined
+writebatchDelete (Writebatch m) key
+  = S.unsafeUseAsCStringLen key $ \(kptr, klen) ->
+      Conc.withMVar m $ \wb ->
+        C.c_leveldb_writebatch_delete wb kptr (fromIntegral klen)
 
--- | Destroy a 'Writebatch' object after you're done with it
+-- | Destroy a 'Writebatch' object after you're done with it.
 destroyWritebatch :: Writebatch -- ^ Writebatch object
                   -> IO ()
-destroyWritebatch = undefined
+destroyWritebatch (Writebatch m)
+  = Conc.withMVar m C.c_leveldb_writebatch_destroy
+
 
 -- | Return a handle to the current DB state. Iterators created with
 -- this handle or reads issued with 'readSnapshot' set to this value will
@@ -315,14 +351,14 @@ releaseSnapshot (Snapshot db s) = do
 destroy :: DBOptions -- ^ Database options
         -> FilePath  -- ^ Path to database
         -> IO (Maybe String)
-destroy dbopts dbname =
-  withCString dbname $ \str -> do
-    opts <- dbOptsToPtr dbopts
-    r <- wrapErr (C.c_leveldb_destroy_db opts str)
-    C.c_leveldb_options_destroy opts
-    case r of
-      Left e -> return (Just e)
-      Right _ -> return Nothing
+destroy dbopts dbname
+  = withCString dbname $ \str -> do
+      opts <- dbOptsToPtr dbopts
+      r <- wrapErr (C.c_leveldb_destroy_db opts str)
+      C.c_leveldb_options_destroy opts
+      case r of
+        Left e -> return (Just e)
+        Right _ -> return Nothing
 
 -- | If a DB cannot be opened, you may attempt to call this method to
 -- resurrect as much of the contents of the database as possible.
@@ -334,14 +370,14 @@ destroy dbopts dbname =
 repair :: DBOptions -- ^ Database options
        -> FilePath  -- ^ Path to database
        -> IO (Maybe Err)
-repair dbopts dbname =
-  withCString dbname $ \str -> do
-    opts <- dbOptsToPtr dbopts
-    r <- wrapErr (C.c_leveldb_repair_db opts str)
-    C.c_leveldb_options_destroy opts
-    case r of
-      Left e -> return (Just e)
-      Right _ -> return Nothing
+repair dbopts dbname
+  = withCString dbname $ \str -> do
+      opts <- dbOptsToPtr dbopts
+      r <- wrapErr (C.c_leveldb_repair_db opts str)
+      C.c_leveldb_options_destroy opts
+      case r of
+        Left e -> return (Just e)
+        Right _ -> return Nothing
 
 -- | Retrieve a property about the database. Valid property names include:
 --
@@ -356,14 +392,14 @@ repair dbopts dbname =
 property :: DB 
          -> String -- ^ Property name
          -> IO (Maybe String)
-property (DB db _ _) prop = do
-  withCString prop $ \str -> do
-    p <- C.c_leveldb_property_value db str
-    if p == nullPtr then return Nothing
-     else do
-       x <- Just `liftM` peekCString p
-       free p
-       return x
+property (DB db _ _) prop
+  = withCString prop $ \str -> do
+      p <- C.c_leveldb_property_value db str
+      if p == nullPtr then return Nothing
+       else do
+         x <- Just `liftM` peekCString p
+         free p
+         return x
 
 -- 
 -- Utils
