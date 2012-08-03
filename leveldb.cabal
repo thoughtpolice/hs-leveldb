@@ -18,7 +18,7 @@ description:
   * Iterator support for enumerating ranges of keys in the database.
   .
   This package contains the complete LevelDB source code and is completely self
-  contained. The included LevelDB git revision is @239ac9d2dea0ac1708b7d903a3d80d3883e0781b@.
+  contained. It is based on LevelDB 1.5.0 (git sha1 @dd0d562b4d4fbd07db6a44f9e221f8d368fee8e4@.)
   .
   This binding is based on the C API, and thus not all of the functionality is supported.
   It has been tested on Mac OS X Snow Leopard and modern Linux, but will likely also work on
@@ -65,6 +65,7 @@ source-repository head
 library
   exposed-modules:
     Database.LevelDB
+    Database.LevelDB.IO
     Database.LevelDB.FFI
   build-depends:
     base       >= 4,
@@ -93,9 +94,9 @@ library
     src/cbits/leveldb/db/builder.cc
     src/cbits/leveldb/db/c.cc
     src/cbits/leveldb/db/db_bench.cc
+    src/cbits/leveldb/db/dbformat.cc
     src/cbits/leveldb/db/db_impl.cc
     src/cbits/leveldb/db/db_iter.cc
-    src/cbits/leveldb/db/dbformat.cc
     src/cbits/leveldb/db/filename.cc
     src/cbits/leveldb/db/log_reader.cc
     src/cbits/leveldb/db/log_writer.cc
@@ -106,21 +107,24 @@ library
     src/cbits/leveldb/db/version_set.cc
     src/cbits/leveldb/db/write_batch.cc
     src/cbits/leveldb/port/port_posix.cc
-    src/cbits/leveldb/table/block.cc
     src/cbits/leveldb/table/block_builder.cc
+    src/cbits/leveldb/table/block.cc
+    src/cbits/leveldb/table/filter_block.cc
     src/cbits/leveldb/table/format.cc
     src/cbits/leveldb/table/iterator.cc
     src/cbits/leveldb/table/merger.cc
-    src/cbits/leveldb/table/table.cc
     src/cbits/leveldb/table/table_builder.cc
+    src/cbits/leveldb/table/table.cc
     src/cbits/leveldb/table/two_level_iterator.cc
     src/cbits/leveldb/util/arena.cc
+    src/cbits/leveldb/util/bloom.cc
     src/cbits/leveldb/util/cache.cc
     src/cbits/leveldb/util/coding.cc
     src/cbits/leveldb/util/comparator.cc
     src/cbits/leveldb/util/crc32c.cc
     src/cbits/leveldb/util/env.cc
     src/cbits/leveldb/util/env_posix.cc
+    src/cbits/leveldb/util/filter_policy.cc
     src/cbits/leveldb/util/hash.cc
     src/cbits/leveldb/util/histogram.cc
     src/cbits/leveldb/util/logging.cc

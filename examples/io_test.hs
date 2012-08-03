@@ -6,7 +6,7 @@ module Main
 import Data.ByteString.Char8 as S
 import Control.Monad (liftM)
 import System.Posix.User (getEffectiveUserID)
-import Database.LevelDB as LDB
+import Database.LevelDB.IO as LDB
 import System.Exit
 
 main :: IO ()

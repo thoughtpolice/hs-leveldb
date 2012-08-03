@@ -9,7 +9,7 @@
 -- 
 -- This module provides low-level FFI bindings to the 'LevelDB' C API.
 -- 
--- This binding is based on LevelDB git revision \'239ac9d2dea0ac1708b7d903a3d80d3883e0781b\'.
+-- This binding is based on LevelDB v1.5.0.
 -- 
 module Database.LevelDB.FFI
        ( -- * Types
