@@ -398,7 +398,9 @@ data Property = FilesAtLevel {-# UNPACK #-} !Int
 property :: DB 
          -> Property -- ^ Property
          -> IO (Maybe String)
-property db (FilesAtLevel n) = property' db $ "leveldb.num-files-at-level" ++ show n
+property db (FilesAtLevel n)
+  | n >= 0    = property' db $ "leveldb.num-files-at-level" ++ show n
+  | otherwise = return Nothing
 property db DBStats          = property' db "leveldb.stats"
 property db SSTables         = property' db "leveldb.sstables"
 
