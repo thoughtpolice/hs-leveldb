@@ -94,6 +94,9 @@ module Database.LevelDB.IO
          -- * Database properties
        , Property(..)
        , property          -- :: DB -> Property -> IO (Maybe String)
+
+         -- * Re-exports
+       , Default, def
        ) where
 
 import Data.Word
@@ -111,6 +114,7 @@ import Control.Concurrent as Conc
 
 import Data.Default
 
+
 import Database.LevelDB.FFI as C
 
 
@@ -118,14 +122,21 @@ import Database.LevelDB.FFI as C
 -- Types
 -- 
 
+-- | 'DBState' encapsulates the state associated with a
+-- database connection.
+data DBState
+  = DBState { _dbOptsPtr    :: !(Ptr LevelDB_Options_t)
+            , _dbCachePtr   :: !(Maybe (Ptr LevelDB_Cache_t))
+            , _dbFPolicyPtr :: !(Maybe (Ptr LevelDB_FilterPolicy_t))
+            }
+  deriving (Eq, Show)
+
 -- | Handle to an opened database.
 data DB
-  = DB { _dbPtr        :: !(Ptr LevelDB_t)
-       , _dbOptsPtr    :: !(Ptr LevelDB_Options_t)
-       , _dbCachePtr   :: !(Maybe (Ptr LevelDB_Cache_t))
-       , _dbFPolicyPtr :: !(Maybe (Ptr LevelDB_FilterPolicy_t))
+  = DB { _dbPtr   :: !(Ptr LevelDB_t)
+       , _dbState :: !DBState
        }
-  deriving Show
+  deriving (Eq, Show)
 
 -- | Handle to a database snapshot
 data Snapshot = Snapshot !(Ptr LevelDB_t) !(Ptr LevelDB_Snapshot_t)
@@ -239,37 +250,20 @@ type Err = String
 open :: DBOptions  -- ^ Database options
      -> FilePath   -- ^ Path to database
      -> IO (Either Err DB)
-open dbopts@DBOptions{..} dbname
+open dbopts dbname
   = withCString dbname $ \str -> do
-      -- First set cache and policy options since they're
-      -- delt with a little out of line.
-      opts <- dbOptsToPtr dbopts
-      cache <- case dbCacheCapacity of
-        Just x -> do
-          c <- C.c_leveldb_cache_create_lru (fromIntegral x)
-          C.c_leveldb_options_set_cache opts c
-          return $ Just c
-        _ -> return Nothing
-      fpolicy <- case dbFilterPolicy of
-        Just (Bloom x) -> do
-          fp <- C.c_leveldb_filterpolicy_create_bloom (fromIntegral x)
-          C.c_leveldb_options_set_filter_policy opts fp
-          return $ Just fp
-        _ -> return Nothing
-      -- Open
-      r <- wrapErr (C.c_leveldb_open opts str)
+      st <- dbOptsToDBState dbopts
+      r <- wrapErr (C.c_leveldb_open (_dbOptsPtr st) str)
       case r of
         Left e   -> return $ Left e
-        Right db -> return $ Right $ DB db opts cache fpolicy
+        Right db -> return $ Right $ DB db st
 
 -- | Close a database handle.
 close :: DB -- ^ Database
       -> IO ()
-close (DB db opts cache fpolicy) = do
+close (DB db st) = do
   C.c_leveldb_close db
-  C.c_leveldb_options_destroy opts
-  maybe (return ()) C.c_leveldb_cache_destroy cache
-  maybe (return ()) C.c_leveldb_filterpolicy_destroy fpolicy
+  freeDBState st
 
 
 -- | Put a value into a database.
@@ -278,7 +272,7 @@ put :: DB           -- ^ Database
     -> ByteString   -- ^ Key
     -> ByteString   -- ^ Value
     -> IO (Maybe Err)
-put (DB db _ _ _) woptions key value
+put (DB db _) woptions key value
   = S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
       S.unsafeUseAsCStringLen value $ \(vptr,vlen) -> do
         opts <- writeOptsToPtr woptions
@@ -294,7 +288,7 @@ get :: DB          -- ^ Database
     -> ReadOptions -- ^ Read options
     -> ByteString  -- ^ Key
     -> IO (Either Err ByteString)
-get (DB db _ _ _) roptions key
+get (DB db _) roptions key
   = S.unsafeUseAsCStringLen key $ \(kptr, klen) ->
       alloca $ \vallen -> do 
         opts <- readOptsToPtr roptions
@@ -315,7 +309,7 @@ delete :: DB           -- ^ Database
        -> WriteOptions -- ^ Write options
        -> ByteString   -- ^ Key
        -> IO (Maybe Err)
-delete (DB db _ _ _) woptions key
+delete (DB db _) woptions key
   = S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
       opts <- writeOptsToPtr woptions
       r <- wrapErr (C.c_leveldb_delete db opts kptr (fromIntegral klen))
@@ -331,7 +325,7 @@ write :: DB           -- ^ Database
       -> WriteOptions -- ^ Write options
       -> Writebatch   -- ^ Batch of writes to issue
       -> IO (Maybe Err)
-write (DB db _ _ _) woptions (Writebatch m) = do
+write (DB db _) woptions (Writebatch m) = do
   opts <- writeOptsToPtr woptions
   r <- Conc.withMVar m $ \wb -> wrapErr (C.c_leveldb_write db opts wb)
   C.c_leveldb_writeoptions_destroy opts
@@ -382,7 +376,7 @@ destroyWritebatch (Writebatch m)
 -- call 'releaseSnapshot' when the snapshot is no longer needed.
 createSnapshot :: DB -- ^ Database
                -> IO Snapshot
-createSnapshot (DB db _ _ _) = do
+createSnapshot (DB db _) = do
   snap <- C.c_leveldb_create_snapshot db
   return $! Snapshot db snap
 
@@ -404,9 +398,9 @@ destroy :: DBOptions -- ^ Database options
         -> IO (Maybe String)
 destroy dbopts dbname
   = withCString dbname $ \str -> do
-      opts <- dbOptsToPtr dbopts
-      r <- wrapErr (C.c_leveldb_destroy_db opts str)
-      C.c_leveldb_options_destroy opts
+      st <- dbOptsToDBState dbopts
+      r <- wrapErr (C.c_leveldb_destroy_db (_dbOptsPtr st) str)
+      freeDBState st
       case r of
         Left e -> return (Just e)
         Right _ -> return Nothing
@@ -423,9 +417,9 @@ repair :: DBOptions -- ^ Database options
        -> IO (Maybe Err)
 repair dbopts dbname
   = withCString dbname $ \str -> do
-      opts <- dbOptsToPtr dbopts
-      r <- wrapErr (C.c_leveldb_repair_db opts str)
-      C.c_leveldb_options_destroy opts
+      st <- dbOptsToDBState dbopts
+      r <- wrapErr (C.c_leveldb_repair_db (_dbOptsPtr st) str)
+      freeDBState st
       case r of
         Left e -> return (Just e)
         Right _ -> return Nothing
@@ -485,7 +479,7 @@ property db DBStats          = property' db "leveldb.stats"
 property db SSTables         = property' db "leveldb.sstables"
 
 property' :: DB -> String -> IO (Maybe String)
-property' (DB db _ _ _) prop
+property' (DB db _) prop
   = withCString prop $ \str -> do
       p <- C.c_leveldb_property_value db str
       if p == nullPtr then return Nothing
@@ -514,7 +508,34 @@ readOptsToPtr ReadOptions{..} = do
     Just (Snapshot _ s) -> C.c_leveldb_readoptions_set_snapshot roptions s
   return roptions
 
--- NB: does not set cache! cache is only set/deleted in calls to 'open/cose'
+
+freeDBState :: DBState -> IO ()
+freeDBState DBState{..} = do
+  C.c_leveldb_options_destroy _dbOptsPtr
+  maybe (return ()) C.c_leveldb_cache_destroy _dbCachePtr
+  maybe (return ()) C.c_leveldb_filterpolicy_destroy _dbFPolicyPtr
+
+dbOptsToDBState :: DBOptions -> IO DBState
+dbOptsToDBState dbopts@DBOptions{..} = do
+  -- First set cache and policy options since they're
+  -- delt with a little out of line.
+  opts <- dbOptsToPtr dbopts
+  cache <- case dbCacheCapacity of
+    Just x -> do
+      c <- C.c_leveldb_cache_create_lru (fromIntegral x)
+      C.c_leveldb_options_set_cache opts c
+      return $ Just c
+    _ -> return Nothing
+  fpolicy <- case dbFilterPolicy of
+    Just (Bloom x) -> do
+      fp <- C.c_leveldb_filterpolicy_create_bloom (fromIntegral x)
+      C.c_leveldb_options_set_filter_policy opts fp
+      return $ Just fp
+    _ -> return Nothing
+  -- Done
+  return $! DBState opts cache fpolicy
+
+-- NB: does not set cache!
 dbOptsToPtr :: DBOptions -> IO (Ptr LevelDB_Options_t)
 dbOptsToPtr DBOptions{..} = do
   options <- C.c_leveldb_options_create

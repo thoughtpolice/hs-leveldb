@@ -10,8 +10,6 @@
 -- This module provides a high level interface to Google's
 -- LevelDB (<http://leveldb.googlecode.com>).
 -- 
--- It's based on the C API, and thus doesn't quite offer the entire
--- interface, but it gets close.
 -- 
 -- This binding is based on LevelDB v1.5.0.
 -- 
