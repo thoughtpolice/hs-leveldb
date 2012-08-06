@@ -100,12 +100,14 @@ import Foreign.Ptr
 import Foreign.C.String
 import Foreign.Storable
 import Foreign.Marshal.Alloc
-
 import System.FilePath
+
 import Data.ByteString as S
 import Data.ByteString.Unsafe as S
 
 import Control.Concurrent as Conc
+
+import Data.Default
 
 import Database.LevelDB.FFI as C
 
@@ -173,6 +175,9 @@ defaultDBOptions
               , dbCompression         = Snappy
               }
 
+instance Default DBOptions where
+  def = defaultDBOptions
+
 -- | Options for issuing reads from the database.
 data ReadOptions
   = ReadOptions { readVerifyChecksums :: Bool -- ^ If set, then reads will verify checksum data. Default: false.
@@ -187,6 +192,9 @@ defaultReadOptions
                 , readSnapshot        = Nothing
                 }
 
+instance Default ReadOptions where
+  def = defaultReadOptions
+
 -- | Options specified when issuing writes on the database.
 -- Right now, you can just control whether or not you should
 -- sync the filesystem after every write via @fsync@ et al.
@@ -198,6 +206,9 @@ defaultWriteOptions :: WriteOptions
 defaultWriteOptions
   = WriteOptions { writeWithSync = False
                  }
+
+instance Default WriteOptions where
+  def = defaultWriteOptions
 
 -- | The LevelDB C API uses Strings for an error interface.
 type Err = String
