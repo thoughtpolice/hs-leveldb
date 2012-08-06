@@ -70,10 +70,13 @@ library
   build-depends:
     base       >= 4,
     bytestring >= 0.9,
-    filepath   >= 1.0
+    filepath   >= 1.0,
+    cereal     >= 0.3,
+    resourcet  >= 0.3
 
+  -- These accurately replicate the options from LevelDB's configure
+  -- script.
   cc-options:         -fno-builtin-memcmp -DLEVELDB_PLATFORM_POSIX
-
   if os(linux)
     cc-options:       -DOS_LINUX
   if os(darwin)
