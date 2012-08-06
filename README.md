@@ -11,12 +11,14 @@ These are the awesome Haskell bindings.
 Most of the features of the C bindings:
 
   * Automatic compression if you have [Snappy](http://snappy.googlecode.com) installed.
-  * Snapshots
-  * Repair functionality
-  * Batch-based atomic writes
-  * Iterator support
-  * Properties and approximate sizes on the filesystem
-  * Moderately high level bindings, along with low-level C based bindings
+  * Snapshots.
+  * Repair functionality.
+  * Batch-based atomic writes.
+  * Iterator support for enumerating key ranges.
+  * Filter policies allow you to trade memory for disk seeks.
+  * Database/key-range compaction.
+  * Properties and approximate sizes on the filesystem.
+  * Tiered bindings, offering high level, mid-level and low-level interfaces.
 
 # Installation
 

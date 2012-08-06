@@ -15,9 +15,11 @@ description:
   . 
   * Batch-based atomic writes.
   .
-  * Iterator support for enumerating ranges of keys in the database.
+  * Iterator support for enumerating key ranges.
   .
   * Filter policies, allowing you to trade disk seeks for memory usage (bloom filter only right now.)
+  .
+  * Database/key-range compaction
   .
   This package contains the complete LevelDB source code and is completely self
   contained. It is based on LevelDB 1.5.0 (git sha1 @dd0d562b4d4fbd07db6a44f9e221f8d368fee8e4@.)
