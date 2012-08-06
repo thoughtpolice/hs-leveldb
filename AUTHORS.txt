@@ -1,3 +1,8 @@
 Author, target of blame:
 
-Austin Seipp <mad.one@gmail.com>
+  Austin Seipp <mad [dot] one [@at] gmail [dot] com>
+
+Contributors:
+
+  Kim Altintop, who helped with both code and ideas in his own
+  `leveldb-haskell` binding.
