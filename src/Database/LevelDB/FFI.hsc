@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Database.LevelDB.FFI
 -- Copyright   : (c) Austin Seipp 2012

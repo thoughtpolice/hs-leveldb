@@ -24,7 +24,7 @@ main = do
     db <- open dbname opts
     say "stats"
     s <- property db DBStats
-    say_ (fromJust s)
+    say_ s
 
     say "put"
     putBS db def "foo" "hello"
@@ -52,7 +52,7 @@ main = do
   runResourceT $ do
     db <- open dbname def
     s <- property db DBStats
-    say_ (fromJust s)
+    say_ s
 
   say "end"
 

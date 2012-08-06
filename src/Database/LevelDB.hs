@@ -175,8 +175,10 @@ compactAll :: MonadResource m => LevelDB.DB -> m ()
 compactAll db = liftIO (LevelDB.compactAll db)
 
 -- | Retrieve a 'LevelDB.Property' about the database.
-property :: MonadResource m => LevelDB.DB -> Property -> m (Maybe String)
-property db prop = liftIO (LevelDB.property db prop)
+property :: MonadResource m => LevelDB.DB -> Property -> m String
+property db prop
+  =   liftIO (LevelDB.property db prop)
+  >>= maybe (throwUserErr "Could not retrieve property" prop) return
 
 
 --
@@ -184,12 +186,10 @@ property db prop = liftIO (LevelDB.property db prop)
 --
 
 onoesIfErr :: (MonadThrow m, Show e) => String -> Either e a -> m a
-onoesIfErr msg (Left e)  = throwUserErr (msg ++ ": "++show e)
-onoesIfErr _   (Right r) = return r
+onoesIfErr msg = either (throwUserErr msg) return 
 
 onoesIfErr2 :: (MonadThrow m, Show e) => String -> Maybe e -> m ()
-onoesIfErr2 msg (Just e) = throwUserErr (msg ++ ": "++show e)
-onoesIfErr2 _   Nothing  = return ()
+onoesIfErr2 msg = maybe (return ()) (throwUserErr msg)
 
-throwUserErr :: MonadThrow m => String -> m a
-throwUserErr = monadThrow . userError
+throwUserErr :: (MonadThrow m, Show e) => String -> e -> m a
+throwUserErr msg e = monadThrow (userError $ msg ++ ": " ++ show e)

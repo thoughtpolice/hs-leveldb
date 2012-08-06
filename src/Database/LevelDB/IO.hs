@@ -23,11 +23,16 @@
 --  * Iterator support
 -- 
 --  * Comparators
+--
+--  * Custom environment support (needs C library support)
+--
+--  * Custom filter policies besides bloom filters
 -- 
 -- TODO:
 -- 
 --  * Back Iterators/writebatches by 'ForeignPtr's with finalizers. Maybe snapshots too,
 --    but normally you may want to control that more.
+-- 
 --  * More safety in 'close': it shouldn't double-free when you call it twice on the same object.
 --    Perhaps make 'DB' instead contain an 'MVar DBState'
 -- 
@@ -457,22 +462,24 @@ compactAll db = compactRange db Nothing Nothing
 -- | Database properties. Currently offered properties are:
 --
 --  * \"leveldb.num-files-at-level\<N\>\" - return the number of files at level \<N\>,
---    where <N> is an ASCII representation of a level number (e.g. \"0\").
+--    where \<N\> is an ASCII representation of a level number (e.g. \"0\").
 -- 
 --  * \"leveldb.stats\" - returns a multi-line string that describes statistics
 --    about the internal operation of the DB.
 -- 
 --  * \"leveldb.sstables\" - returns a multi-line string that describes all
 --    of the sstables that make up the db contents.
-data Property = FilesAtLevel {-# UNPACK #-} !Int
-              | DBStats
-              | SSTables
+data Property
+  = NumFilesAtLevel {-# UNPACK #-} !Int
+  | DBStats
+  | SSTables
+  deriving (Eq, Show)
 
 -- | Retrieve a property about the database.
 property :: DB 
          -> Property -- ^ Property
          -> IO (Maybe String)
-property db (FilesAtLevel n)
+property db (NumFilesAtLevel n)
   | n >= 0    = property' db $ "leveldb.num-files-at-level" ++ show n
   | otherwise = return Nothing
 property db DBStats          = property' db "leveldb.stats"

@@ -4,7 +4,7 @@ synopsis:            Haskell bindings to LevelDB
 description:         
   LevelDB (<http://leveldb.googlecode.com>) is a fast and
   persistent key/value storage library written by Google.
-  It's used as the backend for IndexedDB in Chrome. Among its
+  It's used as the backend for IndexedDB in Chromium. Among its
   features are:
   .
   * Automatic compression if you have Snappy installed (<http://snappy.googlecode.com>).
@@ -17,12 +17,18 @@ description:
   .
   * Iterator support for enumerating ranges of keys in the database.
   .
+  * Filter policies, allowing you to trade disk seeks for memory usage (bloom filter only right now.)
+  .
   This package contains the complete LevelDB source code and is completely self
   contained. It is based on LevelDB 1.5.0 (git sha1 @dd0d562b4d4fbd07db6a44f9e221f8d368fee8e4@.)
   .
-  This binding is based on the C API, and thus not all of the functionality is supported.
-  It has been tested on Mac OS X Snow Leopard and modern Linux, but will likely also work on
-  FreeBSD and Solaris as well.
+  This package offers three interfaces: a low-level C FFI binding, a mid-level interface with some
+  extra safety, and a @ResourceT@ powered high level interface for minimal headache.
+  .
+  This binding is based on the C API, and thus not all of the
+  functionality is supported.  It has been tested on Mac OS X Snow
+  Leopard, Lion, Mountain Lion and modern Linux, but will likely also
+  work on FreeBSD and Solaris as well.
   .
   Please see the LevelDB homepage (<http://leveldb.googlecode.com>) for
   more details and benchmarks.
@@ -30,8 +36,8 @@ homepage:            http://thoughtpolice.github.com/hs-leveldb
 bug-reports:         http://github.com/thoughtpolice/hs-leveldb/issues
 license:             BSD3
 license-file:        LICENSE.txt
-copyright:           Copyright (c) Austin Seipp 2012
-author:              Austin Seipp <mad.one@gmail.com>
+copyright:           Copyright (c) Austin Seipp 2012, Copyright (c) Kim Altintop 2012
+author:              Austin Seipp <mad.one@gmail.com>, Kim Altintop <kim.altintop@gmail.com>
 maintainer:          Austin Seipp <mad.one@gmail.com>
 category:            Database
 build-type:          Configure
