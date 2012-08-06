@@ -23,8 +23,7 @@ main = do
   let opts = def {dbCreateIfMissing = True, dbErrorIfExists = True}
   destroy dbname opts
 
-  runResourceT $ do
-    db <- open dbname opts
+  withDB dbname opts $ \db -> do
     say "stats"
     s <- property db DBStats
     say_ s
@@ -52,8 +51,7 @@ main = do
   repair dbname def
 
   say "stats"
-  runResourceT $ do
-    db <- open dbname def
+  withDB dbname def $ \db -> do
     say_ "number of files at levels:"
     Lifted.catch (do property db (NumFilesAtLevel 0) >>= say_
                      property db (NumFilesAtLevel 1) >>= say_

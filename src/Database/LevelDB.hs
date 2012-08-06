@@ -24,6 +24,7 @@ module Database.LevelDB
 
          -- * Opening and closing a database
        , open                   -- :: MonadResource m => ...
+       , withDB                 -- :: FilePath -> DBOptions -> (DB -> ResourceT IO a) -> IO a
 
          -- * Basic interface
        , put                    -- :: MonadResource m => ...
@@ -92,6 +93,10 @@ open' :: FilePath -> DBOptions -> IO DB
 open' path opts
   =   LevelDB.open path opts
   >>= onoesIfErr ("LevelDB: Could not open database " ++ path)
+
+-- | Convenient interface to run a 'ResourceT' over a single database.
+withDB :: FilePath -> DBOptions -> (DB -> ResourceT IO a) -> IO a
+withDB path opts f = runResourceT $ open path opts >>= f
 
 -- | Stick a key/value pair in the database; the key and value can be
 -- any instance of 'Serialize'.
