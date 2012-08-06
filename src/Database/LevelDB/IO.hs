@@ -66,6 +66,10 @@ module Database.LevelDB.IO
        , writebatchDelete  -- :: Writebatch -> ByteString -> IO ()
        , destroyWritebatch -- :: Writebatch -> IO ()
 
+         -- * Comparators
+
+         -- * Filter policies
+
          -- * Iterators
 
          -- * Snapshots
@@ -76,13 +80,20 @@ module Database.LevelDB.IO
        , destroy           -- :: DBOptions -> FilePath -> IO (Maybe String)
        , repair            -- :: DBOptions -> FilePath -> IO (Maybe String)
 
-         -- * Approximate sizes of filesystem data
+         -- * Ranges and approximate sizes of filesystem data
+       , Range(..)
+       , approxSizes       -- :: DB -> [Range] -> [Word64]
+
+         -- * Database compaction
+       , compactRange      -- :: DB -> [Range] -> IO ()
+       , compactAll        -- :: DB -> IO ()
 
          -- * Database properties
        , Property(..)
        , property          -- :: DB -> Property -> IO (Maybe String)
        ) where
 
+import Data.Word
 import Control.Monad (liftM)
 import Control.Applicative
 import Foreign.Ptr
@@ -379,6 +390,35 @@ repair dbopts dbname
       case r of
         Left e -> return (Just e)
         Right _ -> return Nothing
+
+
+-- | A range represents a range of keys in the database.
+data Range = Range {-# UNPACK #-} !ByteString
+                   {-# UNPACK #-} !ByteString
+  deriving (Eq, Show)
+
+-- | Approximate the size of a range of values in the database.
+approxSizes :: DB -> [Range] -> IO [Word64]
+approxSizes _ _ = return []
+
+-- | Compact a range of keys in the database. Deleted and overwritten
+-- versions of old data are discarded and is rearranged to avoid
+-- seeks/fragmentation.
+--
+-- The first parameter is the starting key, and the second is the
+-- ending key.  'Nothing' represents a key before/after all the other
+-- keys in the database.
+--
+-- Therefore, to compact the whole database, use @compactRange db
+-- Nothing Nothing@ or 'compactAll' below.
+compactRange :: DB -> Maybe Range -> Maybe Range -> IO ()
+compactRange _ _ _ = return ()
+
+-- | Compact the entire database. Defined as:
+--
+-- > compactAll db = compactRange db Nothing Nothing
+compactAll :: DB -> IO ()
+compactAll db = compactRange db Nothing Nothing
 
 -- | Database properties. Currently offered properties are:
 --
