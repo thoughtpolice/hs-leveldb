@@ -81,11 +81,11 @@ module Database.LevelDB.IO
        , repair            -- :: DBOptions -> FilePath -> IO (Maybe String)
 
          -- * Ranges and approximate sizes of filesystem data
-       , Range(..)
+       , Range(..)         -- :: *
        , approxSizes       -- :: DB -> [Range] -> [Word64]
 
          -- * Database compaction
-       , compactRange      -- :: DB -> [Range] -> IO ()
+       , compactRange      -- :: DB -> Maybe Range -> Maybe Range -> IO ()
        , compactAll        -- :: DB -> IO ()
 
          -- * Database properties
@@ -245,6 +245,7 @@ close (DB db opts cache) = do
   C.c_leveldb_options_destroy opts
   maybe (return ()) C.c_leveldb_cache_destroy cache
 
+
 -- | Put a value into a database.
 put :: DB           -- ^ Database
     -> WriteOptions -- ^ Write options
@@ -366,6 +367,7 @@ releaseSnapshot :: Snapshot -- ^ Snapshot
 releaseSnapshot (Snapshot db s) = do
   C.c_leveldb_release_snapshot db s
 
+
 -- | Destroy the contents of the specified database.
 -- Be very careful using this method.
 -- 
@@ -430,6 +432,7 @@ compactRange _ _ _ = return ()
 -- > compactAll db = compactRange db Nothing Nothing
 compactAll :: DB -> IO ()
 compactAll db = compactRange db Nothing Nothing
+
 
 -- | Database properties. Currently offered properties are:
 --
