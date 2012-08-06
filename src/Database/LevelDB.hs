@@ -67,6 +67,7 @@ module Database.LevelDB
          -- * Re-exports
        , Default, def
        ) where
+
 import Data.Word
 import Data.Default (Default, def)
 import Control.Applicative
@@ -79,8 +80,7 @@ import Control.Monad.Trans.Resource
 
 import Database.LevelDB.IO (Range(..), Property(..),
                             DB, DBOptions, WriteOptions, ReadOptions,
-                            Snapshot,
-                            Err)
+                            Snapshot)
 import qualified Database.LevelDB.IO as LevelDB
 
 -- | Opens a database. The handle is automatically closed when the enclosing
@@ -89,13 +89,9 @@ open :: MonadResource m => FilePath -> DBOptions -> m DB
 open path opts = snd <$> allocate (open' path opts) LevelDB.close
 
 open' :: FilePath -> DBOptions -> IO DB
-open' path opts = do
-  r <- LevelDB.open path opts
-  case r of
-    Left err ->
-      let e = userError ("Could not open database " ++ path ++ ", " ++ err)
-      in monadThrow e
-    Right db -> return db
+open' path opts
+  =   LevelDB.open path opts
+  >>= onoesIfErr ("LevelDB: Could not open database " ++ path)
 
 -- | Stick a key/value pair in the database; the key and value can be
 -- any instance of 'Serialize'.
@@ -103,35 +99,44 @@ open' path opts = do
 -- Defined as:
 --
 -- > put db wopts a b = putBS db wopts (encode a) (encode b)
-put :: (MonadResource m, Serialize a, Serialize b) => DB -> WriteOptions -> a -> b -> m (Maybe Err)
+put :: (MonadResource m, Serialize a, Serialize b) => DB -> WriteOptions -> a -> b -> m ()
 put db wopts a b = putBS db wopts (encode a) (encode b)
 
 -- | Stick a key/value pair in the database.
-putBS :: MonadResource m => DB -> LevelDB.WriteOptions -> ByteString -> ByteString -> m (Maybe Err)
-putBS db wopts k v = liftIO (LevelDB.put db wopts k v)
+putBS :: MonadResource m => DB -> LevelDB.WriteOptions -> ByteString -> ByteString -> m ()
+putBS db wopts k v
+  =   liftIO (LevelDB.put db wopts k v)
+  >>= onoesIfErr2 "LevelDB: Could not put value in database"
 
 -- | Pull a value out of the database.
 --
 -- Defined as:
 --
--- > get db ropts k = decode <$> getBS db ropts ()
-get :: (MonadResource m, Serialize a, Serialize b) => DB -> ReadOptions -> a -> m (Either Err b)
-get db ropts k = decode <$> getBS db ropts (encode k)
+-- > get db ropts k = decodeWithErrors <$> getBS db ropts (encode k)
+get :: (MonadResource m, Serialize a, Serialize b) => DB -> ReadOptions -> a -> m b
+get db opts k = do
+  r <- decode <$> getBS db opts (encode k)
+  onoesIfErr "LevelDB: Serialize decoding error" r
 
 -- | Pull a value out of the database.
 getBS :: MonadResource m => DB -> ReadOptions -> ByteString -> m ByteString
-getBS = undefined
+getBS db opts k
+  =   liftIO (LevelDB.get db opts k)
+  >>= onoesIfErr "LevelDB: Could not get value"
 
 -- | Delete a value from the database.
 --
 -- Defined as:
 --
 -- > delete db wopts k = deleteBS db wopts (encode k)
-delete :: (MonadResource m, Serialize a) => DB -> WriteOptions -> a -> m (Maybe Err)
+delete :: (MonadResource m, Serialize a) => DB -> WriteOptions -> a -> m ()
 delete db wopts k = deleteBS db wopts (encode k)
 
-deleteBS :: MonadResource m => DB -> WriteOptions -> ByteString -> m (Maybe Err)
-deleteBS db wopts k = liftIO (LevelDB.delete db wopts k)
+-- | Delete a value from the database.
+deleteBS :: MonadResource m => DB -> WriteOptions -> ByteString -> m ()
+deleteBS db wopts k
+  =   liftIO (LevelDB.delete db wopts k)
+  >>= onoesIfErr2 "LevelDB: Could not delete value"
 
 -- | Takes a snapshot of a database. You can use the returned 'ReleaseKey'
 -- to free the snapshot manually, or let it get disposed of automatically when
@@ -172,3 +177,19 @@ compactAll db = liftIO (LevelDB.compactAll db)
 -- | Retrieve a 'LevelDB.Property' about the database.
 property :: MonadResource m => LevelDB.DB -> Property -> m (Maybe String)
 property db prop = liftIO (LevelDB.property db prop)
+
+
+--
+-- Misc helpers
+--
+
+onoesIfErr :: (MonadThrow m, Show e) => String -> Either e a -> m a
+onoesIfErr msg (Left e)  = throwUserErr (msg ++ ": "++show e)
+onoesIfErr _   (Right r) = return r
+
+onoesIfErr2 :: (MonadThrow m, Show e) => String -> Maybe e -> m ()
+onoesIfErr2 msg (Just e) = throwUserErr (msg ++ ": "++show e)
+onoesIfErr2 _   Nothing  = return ()
+
+throwUserErr :: MonadThrow m => String -> m a
+throwUserErr = monadThrow . userError
