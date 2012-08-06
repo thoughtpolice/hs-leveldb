@@ -449,8 +449,17 @@ approxSizes _ _ = return []
 --
 -- Therefore, to compact the whole database, use @compactRange db
 -- Nothing Nothing@ or 'compactAll' below.
-compactRange :: DB -> Maybe Range -> Maybe Range -> IO ()
-compactRange _ _ _ = return ()
+compactRange :: DB
+             -> Maybe ByteString -- ^ Start range
+             -> Maybe ByteString -- ^ End range
+             -> IO ()
+compactRange (DB db _) r1 r2
+  = toRange r1 $ \(r1p, r1l) ->
+      toRange r2 $ \(r2p, r2l) ->
+        C.c_leveldb_compact_range db r1p (fromIntegral r1l) r2p (fromIntegral r2l)
+  where
+    toRange Nothing  f = f (nullPtr, 0)
+    toRange (Just x) f = S.unsafeUseAsCStringLen x f
 
 -- | Compact the entire database. Defined as:
 --

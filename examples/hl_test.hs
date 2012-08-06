@@ -47,6 +47,10 @@ main = do
       say_ (show x)
     return ()
 
+    say "compacting"
+    compactAll db
+    say_ "ok"
+
   say "repair"
   repair dbname def
 

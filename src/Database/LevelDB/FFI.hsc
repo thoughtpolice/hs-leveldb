@@ -105,6 +105,9 @@ module Database.LevelDB.FFI
          -- ** Approximate sizes
        , c_leveldb_approximate_sizes
 
+         -- ** Compacting
+       , c_leveldb_compact_range
+
          -- ** Properties
        , c_leveldb_property_value
        ) where
@@ -345,6 +348,14 @@ foreign import ccall "leveldb_approximate_sizes"
                               -> Ptr CString -> Ptr CSize
                               -> Ptr CString -> Ptr CSize
                               -> Ptr Word64 -> IO ()
+
+-- Compacting
+
+foreign import ccall "leveldb_compact_range"
+  c_leveldb_compact_range :: Ptr LevelDB_t
+                          -> CString -> CSize
+                          -> CString -> CSize
+                          -> IO ()
 
 -- Properties
 

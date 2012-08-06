@@ -163,7 +163,7 @@ approxSizes :: MonadResource m => LevelDB.DB -> [Range] -> m [Word64]
 approxSizes db ranges = liftIO (LevelDB.approxSizes db ranges)
 
 -- | Compact a range of keys in the database. Deleted and overwritten
--- versions of old data are discarded and is rearranged to avoid
+-- versions of old data are discarded and are rearranged to avoid
 -- seeks/fragmentation.
 --
 -- The first parameter is the starting key, and the second is the
@@ -172,7 +172,7 @@ approxSizes db ranges = liftIO (LevelDB.approxSizes db ranges)
 --
 -- Therefore, to compact the whole database, use @compactRange db
 -- Nothing Nothing@ or 'compactAll' below.
-compactRange :: MonadResource m => LevelDB.DB -> Maybe Range -> Maybe Range -> m ()
+compactRange :: MonadResource m => LevelDB.DB -> Maybe ByteString -> Maybe ByteString -> m ()
 compactRange db r1 r2 = liftIO (LevelDB.compactRange db r1 r2)
 
 -- | Compact all the keys/values in the entire database.

@@ -37,6 +37,13 @@ main = do
       putBS db def x y
     --}
     say_ "ok\n"
+
+    printStats db
+
+    say_ "compacting..."
+    compactAll db
+    say_ "ok\n"
+
     printStats db
 
     say_ "retrieving 10,000,000 kv pairs... "
@@ -44,6 +51,7 @@ main = do
       getBS db def ("abcdefghijkl" `S.append` (encode i))
     say_ "ok\n"
     say "end"
+
     printStats db
 
 printStats db = do
