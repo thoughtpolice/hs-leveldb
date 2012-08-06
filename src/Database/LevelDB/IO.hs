@@ -51,7 +51,7 @@ module Database.LevelDB.IO
        , defaultWriteOptions
 
          -- * Opening/closing databases
-       , open              -- :: DBOptions -> FilePath -> IO (Either Err DB)
+       , open              -- :: FilePath -> DBOptions -> IO (Either Err DB)
        , close             -- :: DB -> IO ()
 
          -- * Basic interface
@@ -81,18 +81,18 @@ module Database.LevelDB.IO
        , releaseSnapshot   -- :: Snapshot -> IO DB
 
          -- * Destroying/Repairing databases
-       , destroy           -- :: DBOptions -> FilePath -> IO (Maybe String)
-       , repair            -- :: DBOptions -> FilePath -> IO (Maybe String)
+       , destroy           -- :: FilePath -> DBOptions -> IO (Maybe String)
+       , repair            -- :: FilePath -> DBOptions -> IO (Maybe String)
 
          -- * Approximate sizes of filesystem data
-       , approxSizes       -- :: DB -> [Range] -> [Word64]
+       , approxSizes       -- :: DB -> [Range] -> IO [Word64]
 
          -- * Database compaction
        , compactRange      -- :: DB -> Maybe Range -> Maybe Range -> IO ()
        , compactAll        -- :: DB -> IO ()
 
          -- * Database properties
-       , Property(..)
+       , Property(..)      -- :: *
        , property          -- :: DB -> Property -> IO (Maybe String)
 
          -- * Re-exports
@@ -247,10 +247,10 @@ type Err = String
 -- | Open a database at a specified path.
 -- May fail if database doesn't exist unless 'dbCreateIfMissing' is @True@.
 -- Will fail if 'dbErrorIfExists' is set and the database exists.
-open :: DBOptions  -- ^ Database options
-     -> FilePath   -- ^ Path to database
+open :: FilePath   -- ^ Path to database
+     -> DBOptions  -- ^ Database options
      -> IO (Either Err DB)
-open dbopts dbname
+open dbname dbopts
   = withCString dbname $ \str -> do
       st <- dbOptsToDBState dbopts
       r <- wrapErr (C.c_leveldb_open (_dbOptsPtr st) str)
@@ -393,10 +393,10 @@ releaseSnapshot (Snapshot db s) = do
 -- 
 -- Returns 'Nothing' if successful. Otherwise, returns
 -- an error.
-destroy :: DBOptions -- ^ Database options
-        -> FilePath  -- ^ Path to database
+destroy :: FilePath  -- ^ Path to database
+        -> DBOptions -- ^ Database options
         -> IO (Maybe String)
-destroy dbopts dbname
+destroy dbname dbopts
   = withCString dbname $ \str -> do
       st <- dbOptsToDBState dbopts
       r <- wrapErr (C.c_leveldb_destroy_db (_dbOptsPtr st) str)
@@ -412,10 +412,10 @@ destroy dbopts dbname
 -- 
 -- Returns 'Nothing' if there was no error. Otherwise, it returns
 -- the error string.
-repair :: DBOptions -- ^ Database options
-       -> FilePath  -- ^ Path to database
+repair :: FilePath  -- ^ Path to database
+       -> DBOptions -- ^ Database options
        -> IO (Maybe Err)
-repair dbopts dbname
+repair dbname dbopts
   = withCString dbname $ \str -> do
       st <- dbOptsToDBState dbopts
       r <- wrapErr (C.c_leveldb_repair_db (_dbOptsPtr st) str)

@@ -71,6 +71,7 @@ library
     base         >= 4,
     bytestring   >= 0.9,
     filepath     >= 1.0,
+    transformers >= 0.3,
     data-default >= 0.5,
     cereal       >= 0.3,
     resourcet    >= 0.3
