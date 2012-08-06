@@ -68,11 +68,12 @@ library
     Database.LevelDB.IO
     Database.LevelDB.FFI
   build-depends:
-    base       >= 4,
-    bytestring >= 0.9,
-    filepath   >= 1.0,
-    cereal     >= 0.3,
-    resourcet  >= 0.3
+    base         >= 4,
+    bytestring   >= 0.9,
+    filepath     >= 1.0,
+    data-default >= 0.5,
+    cereal       >= 0.3,
+    resourcet    >= 0.3
 
   -- These accurately replicate the options from LevelDB's configure
   -- script.
