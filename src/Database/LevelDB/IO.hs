@@ -42,8 +42,9 @@ module Database.LevelDB.IO
        , DBOptions(..)
        , ReadOptions(..)
        , WriteOptions(..)
+       , Range(..)
        , Err
-       
+
          -- * Default options
        , defaultDBOptions
        , defaultReadOptions
@@ -67,10 +68,13 @@ module Database.LevelDB.IO
        , destroyWritebatch -- :: Writebatch -> IO ()
 
          -- * Comparators
+         -- Custom comparators are not yet implemented
 
          -- * Filter policies
+         -- Custom filter policies are not yet implemented
 
          -- * Iterators
+         -- Iterators are not yet implemented
 
          -- * Snapshots
        , createSnapshot    -- :: DB -> IO Snapshot
@@ -80,8 +84,7 @@ module Database.LevelDB.IO
        , destroy           -- :: DBOptions -> FilePath -> IO (Maybe String)
        , repair            -- :: DBOptions -> FilePath -> IO (Maybe String)
 
-         -- * Ranges and approximate sizes of filesystem data
-       , Range(..)         -- :: *
+         -- * Approximate sizes of filesystem data
        , approxSizes       -- :: DB -> [Range] -> [Word64]
 
          -- * Database compaction
@@ -100,7 +103,6 @@ import Foreign.Ptr
 import Foreign.C.String
 import Foreign.Storable
 import Foreign.Marshal.Alloc
-import System.FilePath
 
 import Data.ByteString as S
 import Data.ByteString.Unsafe as S
@@ -116,14 +118,13 @@ import Database.LevelDB.FFI as C
 -- Types
 -- 
 
-data DBState
-  = DBState { dbsPtr      :: !(Ptr LevelDB_t)
-            , dbsOptions  :: !(Ptr LevelDB_Options_t)
-            , dbsCache    :: !(Maybe (Ptr LevelDB_Cache_t))
-            }
-
 -- | Handle to an opened database.
-data DB = DB !(Ptr LevelDB_t) !(Ptr LevelDB_Options_t) !(Maybe (Ptr LevelDB_Cache_t))
+data DB
+  = DB { _dbPtr        :: !(Ptr LevelDB_t)
+       , _dbOptsPtr    :: !(Ptr LevelDB_Options_t)
+       , _dbCachePtr   :: !(Maybe (Ptr LevelDB_Cache_t))
+       , _dbFPolicyPtr :: !(Maybe (Ptr LevelDB_FilterPolicy_t))
+       }
   deriving Show
 
 -- | Handle to a database snapshot
@@ -141,21 +142,35 @@ data Compression
   | None
   deriving (Eq, Show)
 
+-- | Because of the way leveldb data is organized on disk, a single
+-- 'get' call may involve multiple reads from disk. The optional
+-- 'FilterPolicy' mechanism can be used to reduce the number of disk
+-- reads substantially.
+--
+-- While custom filters can be set, right now only the included bloom
+-- filter interface is available.
+data FilterPolicy
+  = Bloom {-# UNPACK #-} !Int -- ^ Bloom filter, with integer specifying how many bits per key to keep in memory.
+  deriving (Eq, Show)
+
 -- | Options for creating a database.
 data DBOptions
   = DBOptions { -- dbComparator          :: ...
-                dbCreateIfMissing     :: Bool        -- ^ Create database if it doesn't exist when calling 'open'. Default: False.
-              , dbErrorIfExists       :: Bool        -- ^ Error if the database exists when calling 'open': Default: False.
-              , dbParanoidChecks      :: Bool        -- ^ Do aggressive checking of data integrity and report errors early. Default: False
+                dbCreateIfMissing     :: Bool         -- ^ Create database if it doesn't exist when calling 'open'. Default: 'False'.
+              , dbErrorIfExists       :: Bool         -- ^ Error if the database exists when calling 'open'. Default: 'False'.
+              , dbParanoidChecks      :: Bool         -- ^ Do aggressive checking of data integrity and report errors early. Default: 'False'
 
-              --, dbInfoLog             :: ...
-              , dbWriteBufferSize     :: Int         -- ^ Amount of data to buffer in memory before writing to disk. Default: 4MB.
-              , dbMaxOpenFiles        :: Int         -- ^ Max amount of files allowed to be open at one time. Default: 1000.
-              , dbCacheCapacity       :: Maybe Int   -- ^ Capacity of LRU cache. If 'Nothing', a default internal 8MB cache is used.
-              , dbBlockSize           :: Int         -- ^ Size of on disk blocks, not taking compression into account.
-                                                     -- Can change dynamically. Default: 4K.
-              , dbBlockResizeInterval :: Int         -- ^ Number of keys between restart points. Most should leave this alone. Default: 16.
-              , dbCompression         :: Compression -- ^ Compression mode. Default: 'Snappy'.
+              , dbFilterPolicy        :: Maybe FilterPolicy -- ^ Set a filter policy for the database to reduce disk seeks.
+                                                            -- Currently only a bloom filter can be set. Default: 'Nothing'
+
+                --, dbInfoLog             :: ...
+              , dbWriteBufferSize     :: Int          -- ^ Amount of data to buffer in memory before writing to disk. Default: 4MB.
+              , dbMaxOpenFiles        :: Int          -- ^ Max amount of files allowed to be open at one time. Default: 1000.
+              , dbCacheCapacity       :: Maybe Int    -- ^ Capacity of LRU cache. If 'Nothing', a default internal 8MB cache is used.
+              , dbBlockSize           :: Int          -- ^ Size of on disk blocks, not taking compression into account.
+                                                      -- Can change dynamically. Default: 4K.
+              , dbBlockResizeInterval :: Int          -- ^ Number of keys between restart points. Most should leave this alone. Default: 16.
+              , dbCompression         :: Compression  -- ^ Compression mode. Default: 'Snappy'.
               }
   deriving (Show)
 
@@ -166,6 +181,7 @@ defaultDBOptions
                 dbCreateIfMissing     = False
               , dbErrorIfExists       = False
               , dbParanoidChecks      = False
+              , dbFilterPolicy        = Nothing
               --, dbInfoLog           = ...
               , dbWriteBufferSize     = 4194304
               , dbMaxOpenFiles        = 1000
@@ -225,25 +241,35 @@ open :: DBOptions  -- ^ Database options
      -> IO (Either Err DB)
 open dbopts@DBOptions{..} dbname
   = withCString dbname $ \str -> do
+      -- First set cache and policy options since they're
+      -- delt with a little out of line.
       opts <- dbOptsToPtr dbopts
       cache <- case dbCacheCapacity of
         Just x -> do
-          c <- C.c_leveldb_cache_create_lru $ fromIntegral x
+          c <- C.c_leveldb_cache_create_lru (fromIntegral x)
           C.c_leveldb_options_set_cache opts c
           return $ Just c
-        Nothing -> return Nothing
+        _ -> return Nothing
+      fpolicy <- case dbFilterPolicy of
+        Just (Bloom x) -> do
+          fp <- C.c_leveldb_filterpolicy_create_bloom (fromIntegral x)
+          C.c_leveldb_options_set_filter_policy opts fp
+          return $ Just fp
+        _ -> return Nothing
+      -- Open
       r <- wrapErr (C.c_leveldb_open opts str)
       case r of
         Left e   -> return $ Left e
-        Right db -> return $ Right $ DB db opts cache
+        Right db -> return $ Right $ DB db opts cache fpolicy
 
 -- | Close a database handle.
 close :: DB -- ^ Database
       -> IO ()
-close (DB db opts cache) = do
+close (DB db opts cache fpolicy) = do
   C.c_leveldb_close db
   C.c_leveldb_options_destroy opts
   maybe (return ()) C.c_leveldb_cache_destroy cache
+  maybe (return ()) C.c_leveldb_filterpolicy_destroy fpolicy
 
 
 -- | Put a value into a database.
@@ -252,7 +278,7 @@ put :: DB           -- ^ Database
     -> ByteString   -- ^ Key
     -> ByteString   -- ^ Value
     -> IO (Maybe Err)
-put (DB db _ _) woptions key value
+put (DB db _ _ _) woptions key value
   = S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
       S.unsafeUseAsCStringLen value $ \(vptr,vlen) -> do
         opts <- writeOptsToPtr woptions
@@ -268,7 +294,7 @@ get :: DB          -- ^ Database
     -> ReadOptions -- ^ Read options
     -> ByteString  -- ^ Key
     -> IO (Either Err ByteString)
-get (DB db _ _) roptions key
+get (DB db _ _ _) roptions key
   = S.unsafeUseAsCStringLen key $ \(kptr, klen) ->
       alloca $ \vallen -> do 
         opts <- readOptsToPtr roptions
@@ -289,7 +315,7 @@ delete :: DB           -- ^ Database
        -> WriteOptions -- ^ Write options
        -> ByteString   -- ^ Key
        -> IO (Maybe Err)
-delete (DB db _ _) woptions key
+delete (DB db _ _ _) woptions key
   = S.unsafeUseAsCStringLen key $ \(kptr,klen) -> do
       opts <- writeOptsToPtr woptions
       r <- wrapErr (C.c_leveldb_delete db opts kptr (fromIntegral klen))
@@ -305,7 +331,7 @@ write :: DB           -- ^ Database
       -> WriteOptions -- ^ Write options
       -> Writebatch   -- ^ Batch of writes to issue
       -> IO (Maybe Err)
-write (DB db _ _) woptions (Writebatch m) = do
+write (DB db _ _ _) woptions (Writebatch m) = do
   opts <- writeOptsToPtr woptions
   r <- Conc.withMVar m $ \wb -> wrapErr (C.c_leveldb_write db opts wb)
   C.c_leveldb_writeoptions_destroy opts
@@ -356,7 +382,7 @@ destroyWritebatch (Writebatch m)
 -- call 'releaseSnapshot' when the snapshot is no longer needed.
 createSnapshot :: DB -- ^ Database
                -> IO Snapshot
-createSnapshot (DB db _ _) = do
+createSnapshot (DB db _ _ _) = do
   snap <- C.c_leveldb_create_snapshot db
   return $! Snapshot db snap
 
@@ -459,7 +485,7 @@ property db DBStats          = property' db "leveldb.stats"
 property db SSTables         = property' db "leveldb.sstables"
 
 property' :: DB -> String -> IO (Maybe String)
-property' (DB db _ _) prop
+property' (DB db _ _ _) prop
   = withCString prop $ \str -> do
       p <- C.c_leveldb_property_value db str
       if p == nullPtr then return Nothing
@@ -500,6 +526,7 @@ dbOptsToPtr DBOptions{..} = do
   C.c_leveldb_options_set_block_size options (fromIntegral dbBlockSize)
   C.c_leveldb_options_set_block_restart_interval options (fromIntegral dbBlockResizeInterval)
   C.c_leveldb_options_set_compression options (toCompression dbCompression)
+
   return options
  where
     toCompression Snappy = C.c_leveldb_snappy_compression

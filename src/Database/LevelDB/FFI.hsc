@@ -23,6 +23,7 @@ module Database.LevelDB.FFI
        , LevelDB_Writeoptions_t
        , LevelDB_Snapshot_t
        , LevelDB_Writebatch_t
+       , LevelDB_FilterPolicy_t
 
          -- * Bindings
          -- ** Open, closing, destroying, repairing
@@ -42,6 +43,8 @@ module Database.LevelDB.FFI
        , c_leveldb_env_destroy
        , c_leveldb_cache_create_lru
        , c_leveldb_cache_destroy
+       , c_leveldb_filterpolicy_create_bloom
+       , c_leveldb_filterpolicy_destroy
        , c_leveldb_options_create
        , c_leveldb_options_destroy
        , c_leveldb_readoptions_create
@@ -69,7 +72,7 @@ module Database.LevelDB.FFI
        , c_leveldb_options_set_block_restart_interval
        , c_leveldb_options_set_compression
        , c_leveldb_options_set_comparator
-
+       , c_leveldb_options_set_filter_policy
        , c_leveldb_no_compression
        , c_leveldb_snappy_compression
 
@@ -124,6 +127,7 @@ data LevelDB_Readoptions_t
 data LevelDB_Writeoptions_t
 data LevelDB_Snapshot_t
 data LevelDB_Writebatch_t
+data LevelDB_FilterPolicy_t
 
 -- 
 -- Raw FFI bindings
@@ -176,6 +180,11 @@ foreign import ccall "leveldb_cache_create_lru"
   c_leveldb_cache_create_lru :: CSize -> IO (Ptr LevelDB_Cache_t)
 foreign import ccall "leveldb_cache_destroy"
   c_leveldb_cache_destroy :: Ptr LevelDB_Cache_t -> IO ()
+
+foreign import ccall "leveldb_filterpolicy_create_bloom"
+  c_leveldb_filterpolicy_create_bloom :: CInt -> IO (Ptr LevelDB_FilterPolicy_t)
+foreign import ccall "leveldb_filterpolicy_destroy"
+  c_leveldb_filterpolicy_destroy :: Ptr LevelDB_FilterPolicy_t -> IO ()
 
 foreign import ccall "leveldb_options_create"
   c_leveldb_options_create :: IO (Ptr LevelDB_Options_t)
@@ -249,6 +258,9 @@ foreign import ccall "leveldb_options_set_compression"
 
 foreign import ccall "leveldb_options_set_comparator"
   c_leveldb_options_set_comparator :: Ptr LevelDB_Options_t -> Ptr LevelDB_Comparator_t -> IO ()
+
+foreign import ccall "leveldb_options_set_filter_policy"
+  c_leveldb_options_set_filter_policy :: Ptr LevelDB_Options_t -> Ptr LevelDB_FilterPolicy_t -> IO ()
 
 c_leveldb_no_compression :: CInt
 c_leveldb_no_compression = fromIntegral (0 :: Int)
