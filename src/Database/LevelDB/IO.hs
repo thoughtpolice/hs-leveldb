@@ -79,7 +79,8 @@ module Database.LevelDB.IO
          -- * Approximate sizes of filesystem data
 
          -- * Database properties
-       , property          -- :: DB -> String -> IO (Maybe String)
+       , Property(..)
+       , property          -- :: DB -> Property -> IO (Maybe String)
        ) where
 
 import Control.Monad (liftM)
@@ -379,7 +380,7 @@ repair dbopts dbname
         Left e -> return (Just e)
         Right _ -> return Nothing
 
--- | Retrieve a property about the database. Valid property names include:
+-- | Database properties. Currently offered properties are:
 --
 --  * \"leveldb.num-files-at-level\<N\>\" - return the number of files at level \<N\>,
 --    where <N> is an ASCII representation of a level number (e.g. \"0\").
@@ -389,10 +390,20 @@ repair dbopts dbname
 -- 
 --  * \"leveldb.sstables\" - returns a multi-line string that describes all
 --    of the sstables that make up the db contents.
+data Property = FilesAtLevel {-# UNPACK #-} !Int
+              | DBStats
+              | SSTables
+
+-- | Retrieve a property about the database.
 property :: DB 
-         -> String -- ^ Property name
+         -> Property -- ^ Property
          -> IO (Maybe String)
-property (DB db _ _) prop
+property db (FilesAtLevel n) = property' db $ "leveldb.num-files-at-level" ++ show n
+property db DBStats          = property' db "leveldb.stats"
+property db SSTables         = property' db "leveldb.sstables"
+
+property' :: DB -> String -> IO (Maybe String)
+property' (DB db _ _) prop
   = withCString prop $ \str -> do
       p <- C.c_leveldb_property_value db str
       if p == nullPtr then return Nothing
