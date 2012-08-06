@@ -16,7 +16,10 @@
 -- 
 module Database.LevelDB
        ( -- * Types
-         LevelDB.DB             -- :: *
+         DB                     -- :: *
+       , DBOptions              -- :: *
+       , WriteOptions           -- :: *
+       , ReadOptions            -- :: *
        , Range(..)              -- :: *
 
          -- * Opening and closing a database
@@ -24,8 +27,11 @@ module Database.LevelDB
 
          -- * Basic interface
        , put                    -- :: MonadResource m => ...
+       , putBS                  -- :: MonadResource m => ...
        , get                    -- :: MonadResource m => ...
+       , getBS                  -- :: MonadResource m => ...
        , delete                 -- :: MonadResource m => ...
+       , deleteBS               -- :: MonadResource m => ...
 
          -- * Batched writes
          -- TODO
@@ -65,18 +71,24 @@ import Data.Word
 import Data.Default (Default, def)
 import Control.Applicative
 
+import Data.ByteString
+import Data.Serialize hiding (get, put)
+
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource
 
-import Database.LevelDB.IO (Range(..), Property(..))
+import Database.LevelDB.IO (Range(..), Property(..),
+                            DB, DBOptions, WriteOptions, ReadOptions,
+                            Snapshot,
+                            Err)
 import qualified Database.LevelDB.IO as LevelDB
 
 -- | Opens a database. The handle is automatically closed when the enclosing
 -- 'runResourceT' has ended.
-open :: MonadResource m => FilePath -> LevelDB.DBOptions -> m LevelDB.DB
+open :: MonadResource m => FilePath -> DBOptions -> m DB
 open path opts = snd <$> allocate (open' path opts) LevelDB.close
 
-open' :: FilePath -> LevelDB.DBOptions -> IO LevelDB.DB
+open' :: FilePath -> DBOptions -> IO DB
 open' path opts = do
   r <- LevelDB.open path opts
   case r of
@@ -84,6 +96,42 @@ open' path opts = do
       let e = userError ("Could not open database " ++ path ++ ", " ++ err)
       in monadThrow e
     Right db -> return db
+
+-- | Stick a key/value pair in the database; the key and value can be
+-- any instance of 'Serialize'.
+--
+-- Defined as:
+--
+-- > put db wopts a b = putBS db wopts (encode a) (encode b)
+put :: (MonadResource m, Serialize a, Serialize b) => DB -> WriteOptions -> a -> b -> m (Maybe Err)
+put db wopts a b = putBS db wopts (encode a) (encode b)
+
+-- | Stick a key/value pair in the database.
+putBS :: MonadResource m => DB -> LevelDB.WriteOptions -> ByteString -> ByteString -> m (Maybe Err)
+putBS db wopts k v = liftIO (LevelDB.put db wopts k v)
+
+-- | Pull a value out of the database.
+--
+-- Defined as:
+--
+-- > get db ropts k = decode <$> getBS db ropts ()
+get :: (MonadResource m, Serialize a, Serialize b) => DB -> ReadOptions -> a -> m (Either Err b)
+get db ropts k = decode <$> getBS db ropts (encode k)
+
+-- | Pull a value out of the database.
+getBS :: MonadResource m => DB -> ReadOptions -> ByteString -> m ByteString
+getBS = undefined
+
+-- | Delete a value from the database.
+--
+-- Defined as:
+--
+-- > delete db wopts k = deleteBS db wopts (encode k)
+delete :: (MonadResource m, Serialize a) => DB -> WriteOptions -> a -> m (Maybe Err)
+delete db wopts k = deleteBS db wopts (encode k)
+
+deleteBS :: MonadResource m => DB -> WriteOptions -> ByteString -> m (Maybe Err)
+deleteBS db wopts k = liftIO (LevelDB.delete db wopts k)
 
 -- | Takes a snapshot of a database. You can use the returned 'ReleaseKey'
 -- to free the snapshot manually, or let it get disposed of automatically when
