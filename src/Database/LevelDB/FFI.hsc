@@ -8,7 +8,7 @@
 -- Stability   : experimental
 -- Portability : portable
 -- 
--- This module provides low-level FFI bindings to the 'LevelDB' C API.
+-- This module provides low-level FFI bindings to the LevelDB C API.
 -- 
 -- This binding is based on LevelDB v1.5.0.
 -- 
