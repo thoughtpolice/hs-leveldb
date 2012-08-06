@@ -1,6 +1,6 @@
 language: haskell
 install:
   - cabal update
+  - autoreconf
   - cabal install
-  - cabal install QuickCheck HUnit test-framework test-framework-quickcheck2 test-framework-hunit
-
+  - cabal install QuickCheck HUnit hspec criterion
