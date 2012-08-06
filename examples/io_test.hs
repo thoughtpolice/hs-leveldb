@@ -15,8 +15,8 @@ main = do
   say $ "creating db " ++ dbname
 
   let opts = def {dbCreateIfMissing = True, dbErrorIfExists = True}
-  LDB.destroy opts dbname
-  db' <- LDB.open opts dbname
+  LDB.destroy dbname opts
+  db' <- LDB.open dbname opts
   db <- case db' of
   	Left e  -> Prelude.putStrLn ("err: " ++ e) >> exitWith (ExitFailure 1)
   	Right r -> do
@@ -48,8 +48,8 @@ main = do
 
   say "repair"
   LDB.close db
-  Nothing <- LDB.repair def dbname
-  db' <- LDB.open def dbname
+  Nothing <- LDB.repair dbname def
+  db' <- LDB.open dbname def
   db <- case db' of
   	Left e  -> Prelude.putStrLn ("err: " ++ e) >> exitWith (ExitFailure 1)
   	Right r -> do
@@ -61,6 +61,7 @@ main = do
   	  return r
   Right x <- LDB.get db def "box"
   S.putStrLn x
+
   say "cleanup"
   LDB.close db
 

@@ -17,9 +17,9 @@
 module Database.LevelDB
        ( -- * Types
          DB                     -- :: *
-       , DBOptions              -- :: *
-       , WriteOptions           -- :: *
-       , ReadOptions            -- :: *
+       , DBOptions(..)          -- :: *
+       , WriteOptions(..)       -- :: *
+       , ReadOptions(..)        -- :: *
        , Range(..)              -- :: *
 
          -- * Opening and closing a database
