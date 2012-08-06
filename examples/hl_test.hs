@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main
        ( main -- :: IO ()
        ) where
@@ -12,6 +13,8 @@ import Data.Maybe (fromJust)
 
 import Control.Monad.Trans.Resource
 import Control.Monad.IO.Class
+import Control.Exception.Lifted as Lifted
+import Control.Exception
 
 main :: IO ()
 main = do
@@ -51,8 +54,25 @@ main = do
   say "stats"
   runResourceT $ do
     db <- open dbname def
-    s <- property db DBStats
-    say_ s
+    say_ "number of files at levels:"
+    Lifted.catch (do property db (NumFilesAtLevel 0) >>= say_
+                     property db (NumFilesAtLevel 1) >>= say_
+                     property db (NumFilesAtLevel 2) >>= say_
+                     property db (NumFilesAtLevel 3) >>= say_
+                     property db (NumFilesAtLevel 4) >>= say_
+                     property db (NumFilesAtLevel 5) >>= say_
+                     property db (NumFilesAtLevel 6) >>= say_
+                     -- This will throw an exception to be caught
+                     property db (NumFilesAtLevel 7) >>= say_
+                 ) (\(_::SomeException) -> return ())
+
+    putBS db def "hi" "omg"
+    putBS db def "lol" "omg"
+    getBS db def "lol" >>= say_ . show
+    say_ "database stats:"
+    property db DBStats >>= say_
+    say_ "sstable stats:"
+    property db SSTables >>= say_
 
   say "end"
 

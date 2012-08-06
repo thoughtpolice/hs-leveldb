@@ -4,6 +4,8 @@
 
 These are the awesome Haskell bindings.
 
+[travis-ci.org](http://travis-ci.org) results: [![Build Status](https://secure.travis-ci.org/thoughtpolice/hs-leveldb.png?branch=master)](http://travis-ci.org/thoughtpolice/hs-leveldb)
+
 [Homepage][main page].
 
 # Features
