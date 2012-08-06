@@ -4,3 +4,4 @@ install:
   - autoreconf
   - cabal install
   - cabal install QuickCheck HUnit hspec criterion
+
