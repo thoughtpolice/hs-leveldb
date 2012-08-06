@@ -567,6 +567,7 @@ boolToNum False = fromIntegral (0 :: Int)
 wrapErr :: (Ptr CString -> IO a) -> IO (Either Err a)
 wrapErr f = do
   alloca $ \ptr -> do
+    poke ptr nullPtr
     r <- f ptr
     x <- peek ptr
     if (x /= nullPtr) then do

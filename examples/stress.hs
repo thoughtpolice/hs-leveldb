@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main
        ( main -- :: IO ()
@@ -17,7 +18,7 @@ import Control.Monad.IO.Class
 import Control.Exception.Lifted as Lifted
 import Control.Exception
 
-import Control.Monad (when, forM_)
+import Control.Monad (forM_)
 
 main :: IO ()
 main = do
@@ -29,17 +30,18 @@ main = do
   withDB dbname opts $ \db -> do
     say "begin bench"
     say_ "inserting 10,000,000 kv pairs... "
-    forM_ [1..10::Int] $ \i -> do
-      put db def ("abcdefghijkl"::String) ("omghilol" :: String)
+    {--}
+    forM_ [1..10000000::Int] $ \i -> do
+      let x = ("abcdefghijkl" `S.append` (encode i))
+          y = encode i
+      putBS db def x y
+    --}
     say_ "ok\n"
     printStats db
-  withDB dbname def $ \db -> do
-    {-
-    say_ "retrieving 10,000,000 kv pairs..."
-    forM_ [1..10::Int] $ \i -> do
-      (_ :: String) <- get db def ("abcdefghijkl"++show i)
-      return ()
-    -}
+
+    say_ "retrieving 10,000,000 kv pairs... "
+    forM_ [1..10000000::Int] $ \i -> do
+      getBS db def ("abcdefghijkl" `S.append` (encode i))
     say_ "ok\n"
     say "end"
     printStats db
