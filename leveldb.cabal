@@ -158,9 +158,9 @@ test-suite properties
     base           >= 4,
     bytestring,
     filepath,
+    HUnit,
     QuickCheck,
-    test-framework,
-    test-framework-quickcheck2,
+    hspec,
     leveldb
 
   ghc-options:      -Wall -fno-cse -fno-warn-orphans

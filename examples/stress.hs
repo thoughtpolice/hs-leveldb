@@ -26,10 +26,9 @@ main = do
   say $ "creating db " ++ dbname
   let opts = def {dbCreateIfMissing = True, dbErrorIfExists = True}
   destroy dbname opts
-
+  say "begin bench"
   withDB dbname opts $ \db -> do
-    say "begin bench"
-    say_ "inserting 10,000,000 kv pairs... "
+    say "inserting 10,000,000 kv pairs"
     {--}
     forM_ [1..10000000::Int] $ \i -> do
       let x = ("abcdefghijkl" `S.append` (encode i))
@@ -37,28 +36,26 @@ main = do
       putBS db def x y
     --}
     say_ "ok\n"
-
     printStats db
-
-    say_ "compacting..."
+  withDB dbname def $ \db -> do
+    say "compacting"
     compactAll db
     say_ "ok\n"
-
     printStats db
-
-    say_ "retrieving 10,000,000 kv pairs... "
+  withDB dbname def $ \db -> do
+    say "retrieving 10,000,000 kv pairs"
     forM_ [1..10000000::Int] $ \i -> do
       getBS db def ("abcdefghijkl" `S.append` (encode i))
     say_ "ok\n"
-    say "end"
-
     printStats db
+
+  say "end"
 
 printStats db = do
   say "stats"
   property db DBStats >>= say_
   say_ "\n"
-  property db SSTables >>= say_
+--  property db SSTables >>= say_
 
 say_ :: MonadIO m => String -> m ()
 say_ = liftIO . Prelude.putStr
