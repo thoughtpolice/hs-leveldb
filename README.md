@@ -24,15 +24,19 @@ Most of the features of the C bindings:
 
 # Installation
 
-Install the latest version of the bindings from Hackage:
+It's just a `cabal install` away on [Hackage][]:
 
-    $ cabal install leveldb
+```bash
+$ cabal install leveldb
+```
 
 To install the latest git version, you'll need `autoconf` so
 you can regenerate `./configure`:
 
-    $ autoconf
-    $ cabal install
+```bash
+$ autoconf
+$ cabal install
+```
 
 # Join in
 
@@ -59,3 +63,4 @@ BSD3. See `LICENSE.txt` for terms of copyright and redistribution.
 [issue tracker]: http://github.com/thoughtpolice/hs-leveldb/issues
 [gh]: http://github.com/thoughtpolice/hs-leveldb
 [bb]: http://bitbucket.org/thoughtpolice/hs-leveldb
+[Hackage]: http://hackage.haskell.org/package/leveldb
