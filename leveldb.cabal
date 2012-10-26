@@ -107,9 +107,9 @@ library
     src/cbits/leveldb/db/builder.cc
     src/cbits/leveldb/db/c.cc
     src/cbits/leveldb/db/db_bench.cc
-    src/cbits/leveldb/db/dbformat.cc
     src/cbits/leveldb/db/db_impl.cc
     src/cbits/leveldb/db/db_iter.cc
+    src/cbits/leveldb/db/dbformat.cc
     src/cbits/leveldb/db/filename.cc
     src/cbits/leveldb/db/log_reader.cc
     src/cbits/leveldb/db/log_writer.cc
@@ -120,14 +120,14 @@ library
     src/cbits/leveldb/db/version_set.cc
     src/cbits/leveldb/db/write_batch.cc
     src/cbits/leveldb/port/port_posix.cc
-    src/cbits/leveldb/table/block_builder.cc
     src/cbits/leveldb/table/block.cc
+    src/cbits/leveldb/table/block_builder.cc
     src/cbits/leveldb/table/filter_block.cc
     src/cbits/leveldb/table/format.cc
     src/cbits/leveldb/table/iterator.cc
     src/cbits/leveldb/table/merger.cc
-    src/cbits/leveldb/table/table_builder.cc
     src/cbits/leveldb/table/table.cc
+    src/cbits/leveldb/table/table_builder.cc
     src/cbits/leveldb/table/two_level_iterator.cc
     src/cbits/leveldb/util/arena.cc
     src/cbits/leveldb/util/bloom.cc
@@ -143,7 +143,6 @@ library
     src/cbits/leveldb/util/logging.cc
     src/cbits/leveldb/util/options.cc
     src/cbits/leveldb/util/status.cc
-
   ghc-options:        -Wall -O2 -funbox-strict-fields
                       -fwarn-tabs
   default-extensions: CPP
